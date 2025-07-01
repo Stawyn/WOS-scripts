@@ -1,0 +1,31 @@
+local touchscreen = GetPartFromPort(1, "TouchScreen")
+local AirSwitch = GetPartFromPort(2, "Switch")
+local GravSwitch = GetPartFromPort(3, "Switch")
+
+--Functions
+local function Background()
+    local Background = touchscreen:CreateElement("Frame", {ZIndex = 0})
+    Background.Size = UDim2.fromScale(1,1)
+end
+
+local function MainMenu()
+    touchscreen:ClearElements()
+
+    Background()
+    
+    local List = touchscreen:CreateElement("UIListLayout", {HorizontalAlignment = "Center"})
+    List.Parent = Background
+    
+    local LifeSupportButton = touchscreen:CreateElement("TextButton", {
+        Text = "Life Support Functions",
+        AnchorPoint = Vector2.new(0.5,0.5),
+        Size = UDim2.fromScale(0.75,0.15),
+        BackgroundColor = BrickColor.Gray(),
+        Position = UDim2.fromScale(0.5,0.5),
+        TextScaled = true
+    })
+    
+    LifeSupportButton.Parent = Background
+end
+
+coroutine.yield()

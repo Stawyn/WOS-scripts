@@ -1,0 +1,116 @@
+function GetResourceDataFromBinAndTanks(Bins:{Bin}?,Tanks:{Tank}?)
+    local CurrentlyLoggedResources = {}
+    local Resources = {}
+    if Bins ~= nil then
+        for i=1,#Bins do
+            local res = Bins[i]:GetResource()
+            if res ~= "nil" then
+                if Resources[res] == nil then
+                    Resources[res]=0
+                end
+                Resources[res]+=Bins[i]:GetResourceAmount()
+                CurrentlyLoggedResources[res] = true
+            end
+        end
+    end
+    if Tanks ~= nil then
+        for i=1,#Tanks do
+            local res = Tanks[i]:GetResource()
+            if res ~= "nil" then
+                if Resources[res] == nil then
+                    Resources[res]=0
+                end
+                Resources[res]+=Tanks[i]:GetResourceAmount()
+                CurrentlyLoggedResources[res] = true
+            end
+        end
+    end
+
+    return Resources
+end
+
+function MakeAssemblePlan(toMake:string,amount:number,resourcedata:{}?)
+    local RD = resourcedata
+
+    local alreadyinside = {}
+    local returntable = {}
+    local recipe = Assemblers[1]:GetRecipe(toMake)
+    for i=1,#recipe do
+        recipe[i] = recipe[i] * amount
+    end
+
+    local function checker(resourcename,am)
+        if alreadyinside[resourcename] == nil then
+            alreadyinside[resourcename] = true
+            table.insert(returntable,{Resource = resourcename,Amount = am})
+        else
+            local where = 1
+            for i=1,#returntable do
+                if returntable[i].Resource == resourcename then
+                    break
+                end
+                where+=1
+            end
+            returntable[where].Amount+=am
+        end
+    end
+
+    for i,v in pairs(recipe) do
+        if Assemblers[1]:GetRecipe(i) ~= nil then
+            local planb = nil
+            if RD ~=  nil then
+                planb = MakeAssemblePlan(i, v*amount,RD)
+            else
+                planb = MakeAssemblePlan(i, v*amount)
+            end
+            if planb == "LackOfResource" then
+                return "LackOfResource"
+            end
+            for p=1,#planb do
+                checker(planb[p].Resource,planb[p].Amount)
+            end
+        elseif i == "Grass" or i == "Wood" or i == "Stick" then
+            table.insert(returntable,1,{Resource = i,Amount = v*amount})
+        else
+            if RD ~= nil then
+                if RD[i] == nil then
+                    return "LackOfResource"
+                else
+                    if RD[i] < v*amount then
+                        return "LackOfResource"
+                    end
+                end
+            end
+        end
+    end
+
+    if RD ~= nil then
+        local i = 1
+        while i < #returntable+1 do
+            if RD[returntable[i].Resource] ~= nil then
+                if returntable[i].Amount <= RD[returntable[i].Resource] then
+                    table.remove(returntable,i)
+                else
+                    returntable[i].Amount = returntable[i].Amount - RD[returntable[i].Resource]
+                    i+=1
+                end
+            else
+                i+=1
+            end
+        end
+    end
+
+    table.insert(returntable,{Resource = toMake,Amount = amount})
+
+    return returntable
+end
+
+function planshower(plan)
+    if type(plan) ~= "table" then
+        print(plan)
+    else
+        for i=1,#plan do
+            print(plan[i].Resource,plan[i].Amount)
+        end
+    end
+end

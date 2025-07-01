@@ -1,0 +1,499 @@
+--[[~MBEEE-HDR]]
+if workspace then GetPartFromPort,GetPartsFromPort,GetPort,JSONEncode,JSONDecode,TriggerPort,Beep,SandboxID,SandboxRunID=require(game.ServerScriptService['MBEEE.PilotLua']).GetGlobals()end
+-- Studio Typechecking Import, disable by setting the attribute under the script to 0.
+--[[~MBEEE-HDR]]
+local Screen=GetPartFromPort(1,"Screen")
+local Keyboard = GetPartFromPort(2,"Keyboard")
+local ResourceShower = GetPartsFromPort(3,"Sign")
+local propertiesshower = GetPartsFromPort(4,"Sign")
+local Modem = GetPartFromPort(5,"Modem")
+local tab = {}
+local domain = "https://newbiedis.pythonanywhere.com/webhook"
+Screen:ClearElements()
+local estimated_planetcount = 6821
+function makeitwork(str)
+	
+end
+
+function man2(str) -- 5,6,10,13,30~33,34
+	local spliten = string.split(string.sub(str,2,string.len(str)),",")
+	local temptb = {}
+	local res = ""
+	local ithasres = false
+	for i=1,#spliten do
+		--task.wait()
+		--print(tostring(spliten[i]) .. " " .. tostring(i))
+		if i == 5 or i == 6 or i == 10 or i==13 then
+			table.insert(temptb,string.sub(spliten[i],3,string.len(spliten[i])-1))
+		elseif i==31 then
+			table.insert(temptb,spliten[1] .. "," .. spliten[2] .. "," .. spliten[3] .. "," .. spliten[4])
+		elseif i==35 then
+			table.insert(temptb, string.sub(spliten[i],3,string.len(spliten[i])-2))
+		end
+		if not(i>=31 and i<=33) and i~=34 and i ~= 35 then
+			table.insert(temptb,tonumber(spliten[i]))
+		end
+	end
+	return temptb
+end
+
+function man_jsondecode(str)
+	local spliten = string.split(str,"},")
+	for i=1,#spliten do
+		table.insert(tab,man2(spliten[i] .. "}"))
+	end
+end
+
+
+function fire(tofire)
+	print("activated")
+	Modem:RealPostRequest(domain,JSONEncode({content=tofire}),true,function(working, response)
+		if working then 
+			local suc,err = pcall(function()
+				print("fired")
+				local tempstr = JSONDecode(response)['response']
+				man_jsondecode(tempstr)
+				local loading2 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 0, 0, 20), Size = UDim2.new(1, 0, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 1,BorderSizePixel=1, Text = "Successfully got data.",TextColor3 = Color3.fromRGB(255, 255, 255), TextScaled=true })
+				task.wait(1)
+				for i=1,32 do
+					print(tab[1][i])
+				end
+				Screen:ClearElements()
+				wholecode()
+			end)
+			if not suc then
+				print(err)
+				local loading2 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 0, 0, 20), Size = UDim2.new(1, 0, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 1,BorderSizePixel=1, Text =err,TextColor3 = Color3.fromRGB(255, 0, 0), TextScaled=true })
+			end
+		else
+			print("fire faliure")
+			local loading2 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 0, 0, 20), Size = UDim2.new(1, 0, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 1,BorderSizePixel=1, Text = "Failed to get data.",TextColor3 = Color3.fromRGB(255, 0, 0), TextScaled=true })
+		end
+	end,
+	{["Content-Type"]="application/json"})
+end
+
+
+local loading1 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 0, 0, 0), Size = UDim2.new(1, 0, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 1,BorderSizePixel=1, Text = "Planet searcher is now on loading...",TextColor3 = Color3.fromRGB(255, 255, 255), TextScaled=true })
+fire("ineedplanetdata")
+function wholecode()
+	local ScreenObject1 = Screen:CreateElement('Frame', { Position = UDim2.new(0, 0, 0, 0), Size = UDim2.new(1, 0, 1, 0), Transparency = 1, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 1,BorderSizePixel=1 })
+	local ScreenObject2 = Screen:CreateElement('Frame', { Position = UDim2.new(0, 0, 0, 0), Size = UDim2.new(1, 0, 1, 0), Transparency = 1, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 1,BorderSizePixel=1 })
+	local ScreenObject3 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 0, 0, 0), Size = UDim2.new(1, 0, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=1, Text = "Planet searcher",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject4 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 0, 0, 50), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(159, 159, 159), BackgroundTransparency = 0,BorderSizePixel=1, Text = "Planet Type",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject5 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 0, 0, 70), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Barren",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject6 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 0, 0, 90), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Desert",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject7 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 0, 0, 110), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "EarthLike",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject8 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 0, 0, 130), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Exotic",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject9 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 0, 0, 150), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Forest",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject10 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 0, 0, 170), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Gas Giant",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject11 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 0, 0, 190), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Ocean",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject12 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 0, 0, 210), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Terra",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject13 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 0, 0, 230), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Tundra",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject14 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 50), Size = UDim2.new(0, 150, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(159, 159, 159), BackgroundTransparency = 0,BorderSizePixel=1, Text = "Resource Amounts",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject15 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 220, 0, 70), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject16 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 220, 0, 90), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject17 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 220, 0, 110), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject18 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 220, 0, 130), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject19 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 220, 0, 150), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject20 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 220, 0, 170), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject21 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 220, 0, 190), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject22 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 220, 0, 210), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject23 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 220, 0, 230), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject24 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 220, 0, 250), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local titanbut = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 220, 0, 270), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject25 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 70), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(0, 229, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Diamond",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject26 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 90), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(213, 149, 0), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Copper",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject27 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 110), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(80, 80, 80), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Iron",TextColor3 = Color3.fromRGB(255, 255, 255), TextScaled=true })
+	local ScreenObject28 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 130), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(205, 255, 208), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Beryllium",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject29 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 150), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(13, 13, 13), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Coal",TextColor3 = Color3.fromRGB(255, 255, 255), TextScaled=true })
+	local ScreenObject30 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 170), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(195, 195, 195), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Lead",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject31 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 190), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(195, 195, 195), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Aluminum",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject32 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 210), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(36, 195, 0), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Uranium",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject33 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 230), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 247, 0), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Gold",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject34 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 250), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(0, 97, 3), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Jade",TextColor3 = Color3.fromRGB(255, 255, 255), TextScaled=true })
+	local titanname = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 120, 0, 270), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(175, 175, 175), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Titanium",TextColor3 = Color3.fromRGB(255, 255, 255), TextScaled=true })
+	local ScreenObject35 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 290, 0, 50), Size = UDim2.new(0, 150, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(159, 159, 159), BackgroundTransparency = 0,BorderSizePixel=1, Text = "Planet Properties",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject36 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 290, 0, 70), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(147, 255, 246), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Breathable",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject37 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 390, 0, 70), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject38 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 290, 0, 90), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Orbit",TextColor3 = Color3.fromRGB(255, 255, 255), TextScaled=true })
+	local ScreenObject39 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 390, 0, 90), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject40 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 290, 0, 110), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(0, 76, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "TempertureMin",TextColor3 = Color3.fromRGB(255, 255, 255), TextScaled=true })
+	local ScreenObject41 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 390, 0, 110), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject42 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 290, 0, 130), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 0, 0), BackgroundTransparency = 0,BorderSizePixel=0, Text = "TempertureMax",TextColor3 = Color3.fromRGB(255, 255, 255), TextScaled=true })
+	local ScreenObject43 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 390, 0, 130), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject44 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 290, 0, 150), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 247, 0), BackgroundTransparency = 0,BorderSizePixel=0, Text = "StarType",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject45 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 390, 0, 150), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject46 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 290, 0, 170), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(219, 89, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "DayCycle",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject47 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 390, 0, 170), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject48 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 290, 0, 190), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 197, 115), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Start Time",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local ScreenObject49 = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 390, 0, 190), Size = UDim2.new(0, 50, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "any",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local scroll = Screen:CreateElement("ScrollingFrame",{Position = UDim2.new(0.6,0,0,20);Size = UDim2.new(0.4,0,1,-20);BackgroundTransparency=1})
+	local Search = Screen:CreateElement('TextButton', { Position = UDim2.new(0, 340, 0, 300), Size = UDim2.new(0, 100, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0,BorderSizePixel=0, Text = "Search!",TextColor3 = Color3.fromRGB(0, 0, 0), TextScaled=true })
+	local resoulist = {"Diamond","Copper","Iron","Beryllium","Coal","Lead","Aluminum","Uranium","Gold","Jade","Titanium"}
+	local properlist= {"Temp","Star","Name","Breathable","Orbit","DayCycle","StartTime","Type","Gravity"}
+	local properlistposition = {8,32,5,7,10,11,12,6,9}
+	local objs = {ScreenObject1,ScreenObject2,ScreenObject3,ScreenObject4,ScreenObject5,ScreenObject6,ScreenObject7,ScreenObject8,ScreenObject9,ScreenObject10,ScreenObject11,ScreenObject12,ScreenObject13,ScreenObject14,ScreenObject15,ScreenObject16,ScreenObject17,ScreenObject18,ScreenObject19,ScreenObject20,ScreenObject21,ScreenObject22,ScreenObject23,ScreenObject24,ScreenObject25,ScreenObject26,ScreenObject27,ScreenObject28,ScreenObject29,ScreenObject30,ScreenObject31,ScreenObject32,ScreenObject33,ScreenObject34,ScreenObject35,ScreenObject36,ScreenObject37,ScreenObject38,ScreenObject39,ScreenObject40,ScreenObject41,ScreenObject42,ScreenObject43,ScreenObject44,ScreenObject45}
+	local planettypebuttons = {ScreenObject5,ScreenObject6,ScreenObject7,ScreenObject8,ScreenObject9,ScreenObject10,ScreenObject11,ScreenObject12,ScreenObject13}
+	local resourcesbut = {ScreenObject15,ScreenObject16,ScreenObject17,ScreenObject18,ScreenObject19,ScreenObject20,ScreenObject21,ScreenObject22,ScreenObject23,ScreenObject24,titanbut}
+	local planetpropertiesbut = {ScreenObject41,ScreenObject43,ScreenObject49}
+
+	local resources = {nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil}
+	local properties = {nil,nil,nil} -- temp min, temp max, start time
+	local keyboardbuttonsalreadygreen = nil
+	--nil is any      
+	local planettypes = {'Barren','Desert','EarthLike','Exotic','Forest','Gas','Ocean','Terra','Tundra'}
+	local selectedplanettypes = {false,false,false,false,false,false,false,false,false}
+
+	local nowplanettype = ""
+	local reolplanettype = ""
+	local startypes = {'any','Yellow','Orange','Red','Blue','BlackHole','Neutron'}
+	local Orbit = {'any','None','Ice','Stone','Have'}
+	local Breathableanddaycycle = {'any','true','false'}
+	local selectedstartype = 1
+	local selectedorbit = 1
+	local selectedbreathable = 1
+	local selectedresource = 1
+	local selecteddaycycle = 1
+	local orbitbutton = ScreenObject39
+	local breathablebutton = ScreenObject37
+	local startypebutton = ScreenObject45
+	local daycyclebutton = ScreenObject47
+
+
+	orbitbutton.MouseButton1Down:Connect(function()
+		Beep(1)
+		if #Orbit < (selectedorbit + 1) then
+			selectedorbit = 1
+		else
+			selectedorbit += 1
+		end
+		orbitbutton.Text = Orbit[selectedorbit]
+	end)
+
+	breathablebutton.MouseButton1Down:Connect(function()
+		Beep(1)
+		if #Breathableanddaycycle < (selectedbreathable + 1) then
+			selectedbreathable = 1
+		else
+			selectedbreathable += 1
+		end
+		breathablebutton.Text = Breathableanddaycycle[selectedbreathable]
+	end)
+
+	startypebutton.MouseButton1Down:Connect(function()
+		Beep(1)
+		if #startypes < (selectedstartype + 1) then
+			selectedstartype = 1
+		else
+			selectedstartype += 1
+		end
+		startypebutton.Text = startypes[selectedstartype]
+	end)
+
+	daycyclebutton.MouseButton1Down:Connect(function()
+		Beep(1)
+		if #Breathableanddaycycle < (selecteddaycycle + 1) then
+			selecteddaycycle = 1
+		else
+			selecteddaycycle += 1
+		end
+		daycyclebutton.Text = Breathableanddaycycle[selecteddaycycle]
+	end)
+
+	for i=1,#planettypebuttons do
+		planettypebuttons[i].MouseButton1Down:Connect(function()
+			Beep(1)
+			if selectedplanettypes[i] then
+				planettypebuttons[i].BackgroundColor3 = Color3.new(1,1,1)
+				selectedplanettypes[i] = false
+			else
+				planettypebuttons[i].BackgroundColor3 = Color3.new(0,1,0)
+				selectedplanettypes[i] = true
+			end
+		end)
+	end
+
+	for i=1,#resourcesbut do
+		resourcesbut[i].MouseButton1Down:Connect(function()
+			for e=1,#resourcesbut do
+				resourcesbut[e].BackgroundColor3 = Color3.new(1,1,1)
+			end
+			for e=1,#planetpropertiesbut do
+				planetpropertiesbut[e].BackgroundColor3 = Color3.new(1,1,1)
+			end
+			if keyboardbuttonsalreadygreen == resourcesbut[i] then
+				keyboardbuttonsalreadygreen = nil
+			else
+				resourcesbut[i].BackgroundColor3 = Color3.new(0,1,0)
+				keyboardbuttonsalreadygreen = resourcesbut[i]
+			end
+		end)
+	end
+
+	for i=1,#planetpropertiesbut do
+		planetpropertiesbut[i].MouseButton1Down:Connect(function()
+			for e=1,#resourcesbut do
+				resourcesbut[e].BackgroundColor3 = Color3.new(1,1,1)
+			end
+			for e=1,#planetpropertiesbut do
+				planetpropertiesbut[e].BackgroundColor3 = Color3.new(1,1,1)
+			end
+			if keyboardbuttonsalreadygreen == planetpropertiesbut[i] then
+				keyboardbuttonsalreadygreen = nil
+			else
+				planetpropertiesbut[i].BackgroundColor3 = Color3.new(0,1,0)
+				keyboardbuttonsalreadygreen = planetpropertiesbut[i]
+			end
+		end)
+	end
+
+	local function isnumber(i)
+		local suc
+		if tonumber(i) == nil then
+			return false
+		else
+			return true
+		end
+	end
+	local hahayes2 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 0, 1, -40), Size = UDim2.new(1, 0, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 1,BorderSizePixel=1, Text = "",TextColor3 = Color3.fromRGB(255, 0, 0), TextScaled=true })
+	local hahayes3 = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 0, 1, -60), Size = UDim2.new(1, 0, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 1,BorderSizePixel=1, Text = tostring(#tab) .. "/",TextColor3 = Color3.fromRGB(255, 0, 0), TextScaled=true })
+	local function err(reason)
+		Beep(0.5)
+		local hahayes = Screen:CreateElement('TextLabel', { Position = UDim2.new(0, 0, 1, -20), Size = UDim2.new(1, 0, 0, 20), Transparency = 0, Visible = true, BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 1,BorderSizePixel=1, Text = reason,TextColor3 = Color3.fromRGB(255, 0, 0), TextScaled=true })
+		wait(3)
+		hahayes:Destroy()
+	end
+	local beforetxts ={}
+	local count = 0
+
+	local function findwithGUIDs(ta,fin)
+		for i=1,#ta do
+			if ta[i].GUID == fin.GUID then
+				return i
+			end
+		end
+		return nil
+	end
+
+	local function result(tomake,tomake2,colR,colG,colB,info)
+		local q = Screen:CreateElement("TextButton",{Text=tomake;Size=UDim2.new(1,-20,0,20);Position=UDim2.new(0,0,0,count *20);TextScaled=true;BorderSizePixel=0;BackgroundColor3=Color3.fromRGB(colR, colG, colB);TextColor3=Color3.new(1,1,1),TextXAlignment = Enum.TextXAlignment.Left,TextStrokeTransparency=0})
+		local e = Screen:CreateElement("TextLabel",{Text="";Size=UDim2.new(0.3,0,0,20);Position=UDim2.new(0.6,0,0,0);TextScaled=true;BorderSizePixel=0;BackgroundTransparency=1;TextColor3=Color3.new(1,1,1);TextXAlignment = Enum.TextXAlignment.Right,TextStrokeTransparency=0})
+		local spliten = string.split(tomake2," ")
+		for i=0,#spliten-1 do
+			local R = Screen:CreateElement("TextLabel",{Text=spliten[i+1];Size=UDim2.new(0.2,0,0,20);Position=UDim2.new(i * 0.15,0,0,0);TextScaled=true;BorderSizePixel=0;BackgroundTransparency=1;TextColor3=Color3.new(1,1,1);TextXAlignment = Enum.TextXAlignment.Right,TextStrokeTransparency=0})
+			e:AddChild(R)
+		end
+		q.MouseButton1Down:Connect(function()
+			for i=1,#resoulist do
+				ResourceShower[i]:Configure({SignText=resoulist[i]})
+				local sings2 = GetPartsFromPort(ResourceShower[i],"Sign")
+				for N,Q in pairs(sings2) do
+					if findwithGUIDs(ResourceShower,Q) == nil then
+						Q:Configure({SignText=info[i+13]})
+						break
+					end
+				end
+
+			end
+			for i=1,#properlist do
+				propertiesshower[i]:Configure({SignText=properlist[i]})
+				local sings2 = GetPartsFromPort(propertiesshower[i],"Sign")
+				for N,Q in pairs(sings2) do
+					if findwithGUIDs(propertiesshower,Q) == nil then
+						if properlistposition[i] == 7 then
+							if info[7] then
+								Q:Configure({SignText='true'})
+							else
+								Q:Configure({SignText='false'})
+							end
+						else
+							Q:Configure({SignText=info[properlistposition[i]]})
+						end
+						break
+					end
+				end
+			end
+			print("information of " .. info[5] .. ":" .. JSONEncode(info))
+
+		end)
+		count += 1
+		scroll.CanvasSize = UDim2.new(0,0,0,count * 20)
+		table.insert(beforetxts,q)
+		scroll:AddChild(q)
+		q:AddChild(e)
+	end
+	result("hello","hi",1,1,1,"this is info")
+
+	Keyboard:Connect("TextInputted",function(txt,plr)
+		local input = string.sub(txt,1,string.len(txt)-1)
+		if keyboardbuttonsalreadygreen ~= nil then
+			Beep(1)
+			print(keyboardbuttonsalreadygreen)
+			print(table.find(resourcesbut,keyboardbuttonsalreadygreen))
+			local pos = table.find(resourcesbut,keyboardbuttonsalreadygreen)
+			if pos ~= nil then
+				if input == "any" then
+					resources[pos] = nil
+					keyboardbuttonsalreadygreen.BackgroundColor3 =Color3.new(1,1,1)
+					keyboardbuttonsalreadygreen.Text = "any"
+					keyboardbuttonsalreadygreen = nil
+				elseif isnumber(input) then
+					resources[pos] = tonumber(input)
+					keyboardbuttonsalreadygreen.BackgroundColor3 =Color3.new(1,1,1)
+					keyboardbuttonsalreadygreen.Text = input
+					keyboardbuttonsalreadygreen = nil
+
+				else
+					err("invalid syntax (number or 'any')")
+				end
+			end
+			pos = table.find(planetpropertiesbut,keyboardbuttonsalreadygreen)
+			if pos ~= nil then
+				if input == "any" then
+					properties[pos] = nil
+					keyboardbuttonsalreadygreen.BackgroundColor3 =Color3.new(1,1,1)
+					keyboardbuttonsalreadygreen.Text = "any"
+					keyboardbuttonsalreadygreen = nil
+				elseif isnumber(input) then
+					properties[pos] = tonumber(input)
+					keyboardbuttonsalreadygreen.BackgroundColor3 =Color3.new(1,1,1)
+					keyboardbuttonsalreadygreen.Text = input
+					keyboardbuttonsalreadygreen = nil
+
+				else
+					err("invalid syntax (number or 'any')")
+				end
+			end
+		end
+	end)
+	local updating = 0
+	local function letsdo()
+		local prcounter = 0
+		for i,v in pairs(tab) do
+			--task.wait()
+			updating = i
+			local rescheck = true
+			local tab2 = {v[14],v[15],v[16],v[17],v[18],v[19],v[20],v[21],v[22],v[23],v[24]}
+			for e=1,#tab2 do
+				if resources[e] ~= nil then
+					if resources[e] > tab2[e] then
+						rescheck = false
+						break
+					end
+				end
+			end
+			if rescheck then
+				print("reschecked")
+				local typecheck = true
+				local pos = table.find(planettypes,v[6])
+				if table.find(selectedplanettypes,true) ~= nil then
+					if not selectedplanettypes[pos] then
+						typecheck = false
+					end
+				end
+				if typecheck then
+					print("typechecked")
+					local atomcheck = false
+					if selectedbreathable == 1 then
+						atomcheck = true
+					end
+					if (v[7] == 1 and selectedbreathable == 2) then--any true false
+						atomcheck = true
+					end
+					if (v[7] == 0 and selectedbreathable == 3) then--any true false
+						atomcheck = true
+					end
+					if atomcheck then -- temp min, temp max, start time
+						print("atomchecked")
+						local temperturecheck = true
+						if properties[1] ~= nil and properties[2] ~= nil then
+							if not (v[8] <= properties[2]) then
+								temperturecheck = false
+							end 
+							if not (v[8] >= properties[1]) then
+								temperturecheck = false
+							end
+						elseif properties[1] == nil and properties[2] ~= nil then
+							if not (v[8] <= properties[2]) then
+								temperturecheck = false
+							end
+						elseif properties[2] == nil and properties[1] ~= nil then
+							if not (v[8] >= properties[1]) then
+								temperturecheck = false
+							end
+						elseif properties[2] == nil and properties[1] == nil then
+							temperturecheck = true
+						end
+						if temperturecheck then
+							print("temperturechekced")
+							local orbitcheck = true
+							if selectedorbit ~= 1 then
+								local q = table.find(Orbit,v[10])
+								if selectedorbit ~= q then
+									orbitcheck = false
+								end
+							end
+							if v[10] ~= 'None' and selectedorbit == 5 then
+								orbitcheck =  true
+							end
+							if orbitcheck then
+								print("orbitchecked")
+								local daycyclecheck = true
+								if selecteddaycycle ~= 1 then -- any true false
+									if v[11] > 0 and selecteddaycycle ~= 2 then
+										daycyclecheck = false
+									elseif v[11] == 0 and selecteddaycycle ~= 3 then
+										daycyclecheck = false
+									end
+								end 
+								if daycyclecheck then
+									print("daychecked")
+									local starttimecheck = false
+									if properties[3] == nil then
+										starttimecheck = true
+									end
+
+									if properties[3] == v[12] then
+										starttimecheck = true
+									end
+									if starttimecheck then
+										local starcheck = false
+										if selectedstartype == 1 then
+											starcheck = true
+										end
+										if v[32] == startypes[selectedstartype] then
+											starcheck = true
+										end
+										if starcheck then
+											print("starchekced")
+											result(v[5],string.split(v[31],",")[1] .. " " .. string.split(v[31],",")[2] .. " " .. string.split(v[31],",")[3] .. " " .. string.split(v[31],",")[4],v[26],v[27],v[28],v)
+										end
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	Search.MouseButton1Down:Connect(function()
+		Beep(1)
+		scroll.CanvasSize = UDim2.new(0,0,0,0)
+		for i=1,#beforetxts do
+			beforetxts[i]:Destroy()
+		end
+		count =0
+		letsdo()
+	end)
+
+	local coru = coroutine.create(function()
+		while task.wait(1) do
+			hahayes2.Text =tostring(updating)
+		end 
+	end)
+
+	coroutine.resume(coru)
+end

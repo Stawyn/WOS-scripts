@@ -1,0 +1,40 @@
+local keyboard = GetPartFromPort(1, "Keyboard")
+local modem = GetPartFromPort(1, "Modem")
+local blackbox= GetPartFromPort(1,"BlackBox")
+local disk= GetPartFromPort(1,"Disk")
+local oldlogs={}
+local logs=nil
+if disk:Read('timestamp')==nil then
+ disk:Write('timestamp',0)
+end
+local timestamp=disk:Read('timestamp')
+local NetID=123456
+while true do
+ logs=blackbox:GetLogs()
+ if JSONEncode(logs)~=JSONEncode(oldlogs) then
+  logs=blackbox:GetLogs()
+  oldlogs=logs
+  local news={}
+  local counter=0
+  for _,j in pairs(logs) do
+   if tick()-j.TimeAgo>timestamp-1 then
+    table.insert(news,{j.Event,j.Desc,tick()-j.TimeAgo})
+    counter=counter+1
+   end
+  end
+  modem:SendMessage(JSONEncode(news),NetID)
+  timestamp=tick()-logs[1].TimeAgo
+  disk:Write('timestamp',timestamp)
+  for _,i in news do
+   print(JSONEncode(i))
+  end
+ end
+ task.wait(30)
+end
+----------------
+local modem = GetPartFromPort(1, "Modem")
+modem:Connect("MessageSent",function(news)
+ for _,i in JSONDecode(news) do
+  print(JSONEncode(i))
+ end
+end)

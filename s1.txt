@@ -1,0 +1,9 @@
+local ar = GetPart("ARController")
+local gyro = GetPartFromPort(1, "Gyro") -- connect to port via cjoint
+
+while true do
+  local mouse = ar:GetCursor() -- you have to be in the arcontroller (click it) for this to work
+  local pos = mouse.WorldPosition
+  gyro:PointAt(pos)
+  task.wait(1) -- best to use this at the end of the loop and not in the while do
+end

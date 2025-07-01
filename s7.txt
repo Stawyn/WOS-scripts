@@ -1,0 +1,224 @@
+local screen = assert(GetPart("Screen") or GetPart("TouchScreen"), "no screen/touch screen connected")
+
+--stylua: ignore
+local PRIORITY_RESOURCES = { "Warhead", "AlienCore", "Titanium", "Iron", "Copper", "Chute", "Wire", "Neutronium", "Diamond", "Aluminum", "Beryllium", "Uranium", "Lead", "Gold", "Jade", "Magnesium", "Coal", "Silicon", "Sulfur", "Quartz", "Ruby", "Stone", "Ice", "Flint", "Glass", "Sand", "Grass", "Wood", "Stick", "Snow", "Water", "Plasma", "Petroleum", "Gasoline", "Lava", "Oil", "Hydrogen", "Helium", "Steam" }
+
+screen:ClearElements()
+
+--stylua: ignore start
+local background = screen:CreateElement("ImageLabel", { Image = "rbxassetid://3899340539", ScaleType = Enum.ScaleType.Tile, TileSize = UDim2.fromOffset(120, 120), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.fromHex("#FFFFFF"), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(1, 1) })
+local scrollingFrame = screen:CreateElement("ScrollingFrame", { ScrollBarImageColor3 = Color3.fromHex("#3E3E3E"), ScrollBarThickness = 0, Active = true, AnchorPoint = Vector2.new(0, 1), BackgroundColor3 = Color3.fromHex("#3E3E3E"), BackgroundTransparency = 0.5, BorderSizePixel = 0, Position = UDim2.new(0, 6, 1, -6), Size = UDim2.new(1, -12, 1, -44) })
+local titleContainer = screen:CreateElement("Frame", { Active = true, BackgroundColor3 = Color3.fromHex("#3E3E3E"), BackgroundTransparency = 0.5, BorderSizePixel = 0, ClipsDescendants = true, Position = UDim2.fromOffset(6, 6), Selectable = true, Size = UDim2.new(1, -12, 0, 32), SelectionGroup = true })
+
+local header = screen:CreateElement("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.fromHex("#1F1F1F"), BackgroundTransparency = 0.5, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(1, -6, 1, -6) })
+
+local resourceHeader = screen:CreateElement("TextLabel", { Text = "Resource", TextColor3 = Color3.new(1, 1, 1), TextScaled = true, AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(0, 0.5), Size = UDim2.new(1 / 4, 0, 0.65, 0) })
+local changeHeader = screen:CreateElement("TextLabel", { Text = "Change", TextColor3 = Color3.new(1, 1, 1), TextScaled = true, AnchorPoint = Vector2.new(0.33, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(0.33, 0.5), Size = UDim2.new(1 / 4, 0, 0.65, 0) })
+local amountHeader = screen:CreateElement("TextLabel", { Text = "Amount", TextColor3 = Color3.new(1, 1, 1), TextScaled = true, AnchorPoint = Vector2.new(0.66, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(0.66, 0.5), Size = UDim2.new(1 / 4, 0, 0.65, 0) })
+local capacityHeader = screen:CreateElement("TextLabel", { Text = "Capacity", TextColor3 = Color3.new(1, 1, 1), TextScaled = true, AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(1, 0.5), Size = UDim2.new(1 / 4, 0, 0.65, 0) })
+resourceHeader.Parent, changeHeader.Parent, amountHeader.Parent, capacityHeader.Parent = header, header, header, header
+
+scrollingFrame.Parent = background
+titleContainer.Parent = background
+header.Parent = titleContainer
+--stylua: ignore end
+
+local previousAmounts = {}
+local binFrames = {}
+
+local function createResource(Resource: string, Amount: number, Capacity: number)
+	-- stylua: ignore start
+	local resourceFrame = screen:CreateElement("Frame", { BackgroundColor3 = Color3.fromHex("#1F1F1F"), BackgroundTransparency = 0.75, BorderSizePixel = 0, Position = UDim2.fromOffset(3, 0), Size = UDim2.new(1, -6, 0, 26), Selectable = false, Active = false })
+	local resourceText = screen:CreateElement("TextLabel", { Text = Resource, TextColor3 = Color3.new(1, 1, 1), TextStrokeColor3 = Color3.new(1, 1, 1), TextStrokeTransparency = 0.9, TextScaled = true, AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(0, 0.5), Size = UDim2.new(1 / 4, 0, 0.65, 0) })
+	local changeText = screen:CreateElement("TextLabel", { Text = 0, TextColor3 = Color3.new(1, 1, 1), TextScaled = true, AnchorPoint = Vector2.new(0.33, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(0.33, 0.5), Size = UDim2.new(1 / 4, 0, 0.65, 0) })
+	local amountText = screen:CreateElement("TextLabel", { Text = Amount, TextColor3 = Color3.new(1, 1, 1), TextScaled = true, AnchorPoint = Vector2.new(0.66, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(0.66, 0.5), Size = UDim2.new(1 / 4, 0, 0.65, 0) })
+	local capacityText = screen:CreateElement("TextLabel", { Text = Capacity, TextColor3 = Color3.new(1, 1, 1), TextScaled = true, AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(1, 0.5), Size = UDim2.new(1 / 4, 0, 0.65, 0) })
+	--stylua: ignore end
+
+	resourceText.Parent, changeText.Parent, amountText.Parent, capacityText.Parent = resourceFrame, resourceFrame, resourceFrame, resourceFrame
+	resourceFrame.Parent = scrollingFrame
+
+	return {
+		Container = resourceFrame,
+		ResourceText = resourceText,
+		ChangeText = changeText,
+		AmountText = amountText,
+		CapacityText = capacityText,
+	}
+end
+
+local function removeMaterial(material: string)
+	binFrames[material].Container:Destroy()
+	binFrames[material] = nil
+	previousAmounts[material] = nil
+end
+
+local function refilterText(frame, targetText)
+	task.spawn(function()
+		while frame.ContentText ~= targetText do
+			frame.Text = targetText
+			frame:GetPropertyChangedSignal("ContentText"):Wait()
+			task.wait(0.5)
+		end
+	end)
+end
+
+local function calculateMinimumSpareBinsRequired(recipe, material, assembler)
+
+	return 
+end
+
+local function calculateCraftableAmount(recipe, materialAmounts)
+	local craftableAmount = math.huge
+
+	for item, amount in recipe do
+		local available = materialAmounts[item] or 0
+		local canCraft = math.floor(available / amount)
+		craftableAmount = math.min(craftableAmount, canCraft)
+	end
+
+	return craftableAmount
+end
+
+refilterText(resourceHeader, "Resource")
+refilterText(changeHeader, "Change")
+refilterText(amountHeader, "Amount")
+refilterText(capacityHeader, "Capacity")
+
+Microcontroller.Loop:Connect(function()
+    local bins = GetParts("Bin")
+    local tanks = GetParts("Tank")
+    local assemblers = GetParts("Assembler")
+
+    local materialAmounts = {}
+    local materialCapacities = {}
+    local materialColors = {}
+    local allMaterials = {}
+    local checkedBins = {}
+    local spareBinsCount = 0
+    local spareTanksCount = 0
+
+    for _, bin in bins do
+        if checkedBins[bin.GUID] then continue end
+        checkedBins[bin.GUID] = true
+
+        local material, amount = bin.Resource, bin:GetResourceAmount()
+		if material == "" or material == "Any" then
+			material = bin:GetResource()
+		end
+		if  material == "nil" then
+			material = "Any Solid"
+            spareBinsCount += 1
+		end
+
+        local capacity = bin.Size.X * bin.Size.Y * bin.Size.Z 
+
+        if not materialAmounts[material] then
+            table.insert(allMaterials, material)
+            materialAmounts[material] = amount
+            materialCapacities[material] = capacity
+            
+            materialColors[material] = bin.Color
+        else
+            materialAmounts[material] += amount
+            materialCapacities[material] += capacity
+        end
+    end
+
+    for _, tank in tanks do
+        if checkedBins[tank.GUID] then continue end
+        checkedBins[tank.GUID] = true
+
+		local material, amount = tank.Resource, tank:GetResourceAmount()
+		if material == "" or material == "Any" then
+			material = tank:GetResource()
+		end
+		if material == "nil" then
+			material = "Any Fluid"
+            spareTanksCount += 1
+		end
+
+        local capacity = tank.Size.X * tank.Size.Y * tank.Size.Z * 10 
+        if not materialAmounts[material] then
+            table.insert(allMaterials, material)
+            materialAmounts[material] = amount
+            materialCapacities[material] = capacity
+            materialColors[material] = tank.Color
+        else
+            materialAmounts[material] += amount
+            materialCapacities[material] += capacity
+        end
+    end
+
+    table.sort(allMaterials, function(a, b)
+        local aIndex, bIndex = table.find(PRIORITY_RESOURCES, a), table.find(PRIORITY_RESOURCES, b)
+        return if aIndex and bIndex then aIndex < bIndex elseif aIndex then true elseif bIndex then false else a < b
+    end)
+
+    local assemblerIndex = 1
+    task.spawn(function()
+        for _, material in ipairs(allMaterials) do
+            if assemblerIndex > #assemblers then break end
+            local recipe = assemblers[1]:GetRecipe(material)
+            if recipe then
+                local craftable = calculateCraftableAmount(recipe, materialAmounts)
+                local atCapacity = math.round(materialAmounts[material]) >= math.round(materialCapacities[material])
+                if craftable > 0 and not atCapacity then
+                    local toAssign = math.min(craftable, #assemblers - assemblerIndex + 1)
+                    for i = 1, toAssign do
+                        if assemblerIndex > #assemblers then break end
+                        assemblers[assemblerIndex]:Craft(material)
+                        assemblerIndex += 1
+                    end
+                end
+            end
+        end
+    end)
+
+    for material, amount in materialAmounts do
+        if binFrames[material] then
+            local binFrame = binFrames[material]
+
+            local resourceText = binFrame.ResourceText
+            local changeText = binFrame.ChangeText
+            local amountText = binFrame.AmountText
+            local capacityText = binFrame.CapacityText
+
+            local resourceChange = math.round(amount - previousAmounts[material])
+            local amountTextContent = math.round(amount)
+            local targetColour = if resourceChange < 0
+                then Color3.new(1, 0, 0)
+                elseif resourceChange > 0 then Color3.new(0, 1, 0)
+                else Color3.new(1, 1, 1)
+			local amountColour = if amountTextContent >= math.round(materialCapacities[material])
+				then Color3.new(0, 1, 0)
+				else Color3.new(1, 1, 1)
+                 
+            --Updates ui
+            if materialColors and materialColors[material] and resourceText.TextColor3 ~= materialColors[material] then resourceText.TextColor3 = materialColors[material] end
+            if resourceText.ContentText ~= material then resourceText.Text = material end
+            if amountText.ContentText ~= tostring(amountTextContent) then amountText.Text = amountTextContent end
+			if amountText.TextColor3 ~= amountColour then amountText.TextColor3 = amountColour end
+            if changeText.TextColor3 ~= targetColour then changeText.TextColor3 = targetColour end
+            if changeText.ContentText ~= tostring(resourceChange) then changeText.Text = resourceChange end
+            if capacityText.ContentText ~= tostring(materialCapacities[material]) then capacityText.Text = math.round(materialCapacities[material]) end
+        else
+            local materialDisplay = material:gsub("(%l)(%u)", "%1 %2"):gsub("(%l)(%d+)", "%1 %2")
+            binFrames[material] = createResource(materialDisplay, materialAmounts[material], math.round(materialCapacities[material]))
+        end
+    end
+
+    for oldMaterial, _ in previousAmounts do
+        if materialAmounts[oldMaterial] then continue end
+        removeMaterial(oldMaterial)
+    end
+
+    for index, material in allMaterials do
+        local binFrame = binFrames[material].Container
+        binFrame.Position = UDim2.fromOffset(3, (index - 1) * 29)
+        previousAmounts[material] = materialAmounts[material]
+    end
+
+    scrollingFrame.CanvasSize =
+        UDim2.new(0, 0, 1, math.max(50, (#allMaterials - 1) * 29 - scrollingFrame.AbsoluteSize.Y))
+end)

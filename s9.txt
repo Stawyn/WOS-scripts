@@ -1,0 +1,91 @@
+local Reactors = GetParts("Reactor")
+local Polysilicons = GetParts("Polysilicon")
+local Dispensers = GetParts("Dispenser")
+local Instrument = GetPart("Instrument")
+local Position
+local ReactorDistances = {}
+local PolysiliconDistances = {}
+local DispensersDistances = {}
+
+if #Polysilicons < #Reactors then
+	warn("CRITICAL ERROR : YOUR TEMP RODS DOES NOT MATCH REACTORS AMOUNT.")
+	for _, Polysilicon in Polysilicons do
+		Polysilicon.PolysiliconMode = "Activate"
+		Polysilicon.Frequency = 10
+		Polysilicon:Trigger()
+	end
+end
+
+table.clear(ReactorDistances)
+table.clear(PolysiliconDistances)
+table.clear(DispensersDistances) -- Added for consistency, though not strictly necessary if only used once.
+
+Position = Instrument:GetReading("Position")
+for R=1, #Reactors do
+	table.insert(ReactorDistances, {math.abs((Position - Reactors[R].Position).Magnitude), Reactors[R]})
+	table.insert(PolysiliconDistances, {math.abs((Position - Polysilicons[R].Position).Magnitude), Polysilicons[R]})
+	table.insert(DispensersDistances, {math.abs((Position - Dispensers[R].Position).Magnitude), Dispensers[R]})
+end
+
+table.sort(ReactorDistances, function(a, b)
+	return a[1] < b[1]
+end) --This should sort Reactors by their distance from the instrument
+table.sort(PolysiliconDistances, function(a, b)
+	return a[1] < b[1]
+end) --Same but with Polysilicon
+table.sort(DispensersDistances, function(a, b)
+	return a[1] < b[1]
+end) --I swear this will be the last time I run table.sort
+
+for R=1, #Reactors do
+	Reactors[R] = ReactorDistances[R][2]
+	Polysilicons[R] = PolysiliconDistances[R][2]
+	Dispensers[R] = DispensersDistances[R][2]
+end --Putting things back into their place. So it is easier to comprehend what I am going to do
+
+local StabilizedReactors = {}
+for R = 1, #Reactors do
+	StabilizedReactors[R] = false
+end
+
+while task.wait(1) do
+	for R, Reactor in Reactors do
+		local Temp = Reactor:GetTemp()
+		local Fuels = Reactor:GetFuel()
+
+		for _, Fuel in Fuels do
+			if Fuel == -1 then
+				Polysilicons[R].PolysiliconMode = "FlipFlop"
+				Polysilicons[R]:Trigger()
+			elseif Fuel == 0 then
+				StabilizedReactors[R] = false
+				Dispensers[R]:Dispense()
+			end
+		end
+
+		if Temp >= 925 and Temp <= 975 then
+			if not StabilizedReactors[R] then
+				Polysilicons[R].PolysiliconMode = "Activate"
+				Polysilicons[R].Frequency = 10
+				Polysilicons[R]:Trigger()
+				Polysilicons[R].PolysiliconMode = "Deactivate"
+				Polysilicons[R].Frequency = 5
+				Polysilicons[R]:Trigger()
+				StabilizedReactors[R] = true --Ignore this if statement having many lines of code
+			else
+				continue
+			end
+		else
+			StabilizedReactors[R] = false
+			if Temp < 925 then
+				Polysilicons[R].PolysiliconMode = "Deactivate"
+				Polysilicons[R].Frequency = 10
+				Polysilicons[R]:Trigger()
+			elseif Temp > 975 then
+				Polysilicons[R].PolysiliconMode = "Activate"
+				Polysilicons[R].Frequency = 10
+				Polysilicons[R]:Trigger()
+			end
+		end
+	end
+end

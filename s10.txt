@@ -1,0 +1,166 @@
+local assemblers = GetParts("Assembler")
+
+-- Ensure at least one assembler is found
+local assembler = assert(assemblers[1], "No assemblers found.")
+
+local function getRecipe(item: string, amount: number)
+    local recipe = assembler:GetRecipe(item)
+
+    if not recipe then
+        return nil
+    end
+
+    -- Multiply the recipe ingredients by the item amount
+    for ingredient, ingredientAmount in recipe do
+        recipe[ingredient] = ingredientAmount * amount
+    end
+
+    return recipe
+end
+
+local function craftItem(item: string, amount: number)
+    local prepareQueue = {
+        {
+            Item = item,
+            Amount = amount,
+
+            Recipe = getRecipe(item, amount)
+        }
+    }
+
+    local craftStack = {}
+
+    for _, prepareStep in prepareQueue do
+        -- For each item in the prepare step
+        for item, amount in prepareStep.Recipe do
+            local recipe = getRecipe(item, amount)
+
+            -- If the item has no recipe, continue
+            if not recipe then
+                continue
+            end
+
+            -- Add the recipe to the prepare queue
+            table.insert(prepareQueue, {
+                Recipe = recipe,
+                Item = item,
+                Amount = amount,
+            })
+        end
+
+        print("PREPARED", prepareStep.Item, prepareStep.Amount)
+
+        -- Add the prepare step to the craft stack
+        table.insert(craftStack, prepareStep)
+    end
+
+    local craftSuccess = true
+
+    -- Keep track of the current thread & the number of crafts processing
+    local waitingThread = coroutine.running()
+    local craftsProcessing = 0
+
+    local awaitingCraft = {}
+
+    local function scheduleCraft<Args...>(craftFunction: (Args...) -> (boolean, string?), ...: Args...)
+        craftsProcessing += 1
+
+        -- Spawn a new thread to craft in
+        task.spawn(function(...)
+            -- Craft all of the item
+            local success, result = craftFunction(...)
+
+            -- If the craft failed, mark that the request was unsuccessful
+            if not success then
+                warn(`Failed to craft: {result}`)
+                craftSuccess = false
+            end
+
+            -- Decrement craft counter
+            craftsProcessing -= 1
+
+            -- Resume all threads awaiting crafts
+            repeat
+                local thread = table.remove(awaitingCraft, 1)
+
+                if not thread then
+                    break
+                end
+
+                if coroutine.status(thread) == "suspended" then
+                    coroutine.resume(thread)
+                end
+            until false
+
+            -- If there are no more crafts processing & the thread is paused, resume it
+            if craftsProcessing <= 0 and coroutine.status(waitingThread) == "suspended" then
+                coroutine.resume(waitingThread)
+            end
+        end, ...)
+    end
+
+    local function awaitCraft()
+        -- Insert this thread into the awaiting craft list & pause until current crafts complete
+        table.insert(awaitingCraft, coroutine.running())
+        coroutine.yield()
+
+        -- Return current craft success value
+        return craftSuccess
+    end
+
+    local assemblerId = 0
+
+    --- Crafts one of a particular item, using round robin over all assemblers
+    local function craftItemSingular(item: string)
+        -- Increment assemblerId
+        local assemblerIndex = assemblerId + 1
+        assemblerId = assemblerIndex % #assemblers
+
+        -- Select assembler
+        local assembler = assemblers[assemblerIndex]
+
+        -- Schedule the craft
+        scheduleCraft(function()
+            return assembler:Craft(item), item
+        end)
+    end
+
+    --- Crafts multiple of a particular item, using round robin over all assemblers
+    local function craftItemMultiple(item: string, amount: number)
+        print("CRAFTING", item, amount)
+
+        for _itemNumber=1, amount do
+            craftItemSingular(item)
+        end
+    end
+
+    -- Schedule all crafts
+    local craftStackTop = #craftStack
+    repeat
+        -- Grab the value in the craft stack & decrement top
+        local craftStep = craftStack[craftStackTop]
+        craftStackTop -= 1
+
+        -- If there are no more craft steps, exit
+        if not craftStep then
+            break
+        end
+
+        -- Craft all of the items
+        craftItemMultiple(craftStep.Item, craftStep.Amount)
+
+        -- Wait for the current craft to complete, and stop if one of the crafts failed
+        if not awaitCraft() then
+            break
+        end
+    until false
+
+    -- If we are still waiting on crafts, pause the thread until they're done
+    if craftsProcessing > 0 then
+        coroutine.yield()
+    end
+
+    return craftSuccess
+end
+
+craftItem("Motor", 54)

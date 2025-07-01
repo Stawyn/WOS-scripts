@@ -1,0 +1,325 @@
+local Telescopes = GetParts("Telescope")
+local Modem = GetPart("Modem")
+
+-- CONFIGURAÇÕES SEQUENCIAIS
+local MIN_COORD = -100
+local MAX_COORD = 100
+local COORD_RANGE = MAX_COORD - MIN_COORD + 1 -- 201 valores por coordenada
+local TOTAL_COMBINATIONS = COORD_RANGE ^ 4 -- 201^4 = total de combinações
+
+-- VARIÁVEIS DE CONTINUAÇÃO
+local CURRENT_POSITION = 0 -- Posição atual na sequência (ALTERE AQUI PARA CONTINUAR)
+local TELESCOPE_COUNT = 0
+local COORDINATES_PER_TELESCOPE = 0
+
+-- CONFIGURAÇÃO DE LIMITE DE TELESCÓPIOS (ALTERE AQUI)
+local MAX_TELESCOPES = 200 -- ⚡ AUMENTE ESTE NÚMERO PARA MAIS TELESCÓPIOS
+
+-- Função para converter posição linear em coordenadas
+local function PositionToCoordinates(position)
+    if position >= TOTAL_COMBINATIONS then
+        return nil -- Fim da sequência
+    end
+    
+    local temp = position
+    local x1 = MIN_COORD + (temp % COORD_RANGE)
+    temp = math.floor(temp / COORD_RANGE)
+    
+    local x2 = MIN_COORD + (temp % COORD_RANGE)
+    temp = math.floor(temp / COORD_RANGE)
+    
+    local y1 = MIN_COORD + (temp % COORD_RANGE)
+    temp = math.floor(temp / COORD_RANGE)
+    
+    local y2 = MIN_COORD + (temp % COORD_RANGE)
+    
+    return {x1 = x1, x2 = x2, y1 = y1, y2 = y2, position = position}
+end
+
+-- Função para converter coordenadas em posição linear
+local function CoordinatesToPosition(x1, x2, y1, y2)
+    local pos = (y2 - MIN_COORD) * (COORD_RANGE ^ 3)
+    pos = pos + (y1 - MIN_COORD) * (COORD_RANGE ^ 2)
+    pos = pos + (x2 - MIN_COORD) * COORD_RANGE
+    pos = pos + (x1 - MIN_COORD)
+    return pos
+end
+
+-- Função para converter tabela em string recursiva
+local function TableToString(tbl, indent)
+    if type(tbl) ~= "table" then
+        return tostring(tbl)
+    end
+    
+    indent = indent or 0
+    local indentStr = string.rep("  ", indent)
+    local result = "{\n"
+    
+    for key, value in pairs(tbl) do
+        result = result .. indentStr .. "  " .. tostring(key) .. " = "
+        if type(value) == "table" then
+            result = result .. TableToString(value, indent + 1)
+        elseif type(value) == "string" then
+            result = result .. '"' .. tostring(value) .. '"'
+        else
+            result = result .. tostring(value)
+        end
+        result = result .. ",\n"
+    end
+    
+    result = result .. indentStr .. "}"
+    return result
+end
+
+local function SendToAPI(data)
+    local url = "https://6772-189-84-176-77.ngrok-free.app/planets"
+    task.spawn(function()
+        local success, result = pcall(function()
+            return Modem:PostAsync(url, JSONEncode(data))
+        end)
+        if success then
+            print("✅ API: " .. (data.planet_name or data.Name or "Planet"))
+        else
+            print("❌ API Error: " .. tostring(result))
+        end
+    end)
+end
+
+local function SendProgressToAPI(telescopeIndex, currentPos, totalAssigned, planetsFound)
+    local progressData = {
+        type = "progress",
+        telescope_id = telescopeIndex,
+        current_position = currentPos,
+        total_assigned = totalAssigned,
+        planets_found = planetsFound,
+        user = "Stawyn",
+        timestamp = os.time(),
+        progress_percentage = math.floor((currentPos / totalAssigned) * 100),
+        current_datetime_utc = "2025-07-01 07:25:26"
+    }
+    
+    local url = "https://6772-189-84-176-77.ngrok-free.app/progress"
+    task.spawn(function()
+        pcall(function()
+            Modem:PostAsync(url, JSONEncode(progressData))
+        end)
+    end)
+end
+
+local function SequentialWorker(telescope, telescopeIndex, startPosition, endPosition)
+    print(string.format("🚀 T%d: Posições %d até %d", telescopeIndex, startPosition, endPosition))
+    
+    local tested = 0
+    local found = 0
+    local errors = 0
+    local currentPos = startPosition
+    local totalAssigned = endPosition - startPosition + 1
+    
+    while currentPos <= endPosition do
+        local coord = PositionToCoordinates(currentPos)
+        if not coord then
+            print("❌ T" .. telescopeIndex .. " - Fim da sequência")
+            break
+        end
+        
+        tested = tested + 1
+        currentPos = currentPos + 1
+        
+        -- Configuração do telescópio
+        local success, configResult = pcall(function()
+            telescope:Configure({ 
+                ViewCoordinates = string.format("%d,%d,%d,%d,false", 
+                    coord.x1, coord.x2, coord.y1, coord.y2) 
+            })
+        end)
+        
+        if not success then
+            errors = errors + 1
+            print("❌ T" .. telescopeIndex .. " - Config Error")
+            task.wait(1)
+            continue
+        end
+        
+        task.wait(0.25) -- Reduzido para mais velocidade com mais telescópios
+        
+        -- Verificação do planeta COM DADOS COMPLETOS
+        local planetRawData = nil
+        local getSuccess, getResult = pcall(function()
+            return telescope:GetCoordinate()
+        end)
+        
+        if getSuccess and getResult then
+            planetRawData = getResult
+        else
+            errors = errors + 1
+            continue
+        end
+        
+        -- VERIFICAÇÃO MELHORADA PARA PLANETA
+        local planetName = nil
+        if planetRawData then
+            planetName = planetRawData.Name or planetRawData.name or planetRawData.PlanetName or planetRawData.planetName
+        end
+        
+        -- Planeta encontrado
+        if planetRawData and planetName and planetName ~= "" and planetName ~= "SECTOR () ()" then
+            found = found + 1
+            
+            local planetRawString = TableToString(planetRawData)
+            
+            local apiData = {
+                Name = planetName,
+                planet_name = planetName,
+                planetName = planetName,
+                name = planetName,
+                telescope_id = telescopeIndex,
+                coordinates = {
+                    x1 = coord.x1,
+                    x2 = coord.x2,
+                    y1 = coord.y1,
+                    y2 = coord.y2
+                },
+                sequential_position = coord.position,
+                discovery_time = os.time(),
+                user = "Stawyn",
+                discovery_datetime_utc = "2025-07-01 07:25:26",
+                scanner_version = "v15.0",
+                max_telescopes_used = MAX_TELESCOPES,
+                raw_planet_data = planetRawString,
+                raw_data_json = JSONEncode(planetRawData)
+            }
+            
+            print(string.format("🌎 T%d-P%d: %s [%d,%d,%d,%d] Pos:%d", 
+                telescopeIndex, found, planetName, coord.x1, coord.x2, coord.y1, coord.y2, coord.position))
+            
+            -- Logs condensados para mais telescópios
+            if found % 5 == 1 then -- Mostra dados completos a cada 5 planetas
+                print("📋 DADOS BRUTOS:")
+                print("🏷️  NOME: " .. planetName)
+                if planetRawData.Type then print("   📍 Tipo: " .. planetRawData.Type) end
+                if planetRawData.Resources then 
+                    print("   🏭 RECURSOS:")
+                    for resource, amount in pairs(planetRawData.Resources) do
+                        print("      " .. resource .. ": " .. tostring(amount))
+                    end
+                end
+                print("=" .. string.rep("=", 40))
+            end
+            
+            SendToAPI(apiData)
+        end
+        
+        -- Status mais frequente para mais telescópios
+        if tested % 50 == 0 then
+            local progressPercent = math.floor(((currentPos - startPosition) / totalAssigned) * 100)
+            print(string.format("📊 T%d: %d🌎/%d🔍 | %d%% | Pos:%d", 
+                telescopeIndex, found, tested, progressPercent, currentPos - 1))
+            
+            SendProgressToAPI(telescopeIndex, currentPos - 1, totalAssigned, found)
+        end
+        
+        task.wait(0.05) -- Delay reduzido para alta performance
+    end
+    
+    print(string.format("🏁 T%d COMPLETO: %d planetas em %d testes | Pos Final: %d", 
+          telescopeIndex, found, tested, currentPos - 1))
+    
+    SendProgressToAPI(telescopeIndex, currentPos - 1, totalAssigned, found)
+end
+
+local function LaunchHighPerformanceScanner()
+    if not Telescopes or #Telescopes == 0 then
+        print("❌ Nenhum telescópio encontrado!")
+        return
+    end
+    
+    -- USA O LIMITE CONFIGURADO
+    TELESCOPE_COUNT = math.min(#Telescopes, MAX_TELESCOPES)
+    COORDINATES_PER_TELESCOPE = math.floor(TOTAL_COMBINATIONS / TELESCOPE_COUNT)
+    
+    print("⚡ HIGH PERFORMANCE TELESCOPE SCANNER")
+    print("📡 Telescópios disponíveis: " .. #Telescopes)
+    print("🚀 Telescópios utilizados: " .. TELESCOPE_COUNT .. "/" .. MAX_TELESCOPES)
+    print("🌐 Total de combinações: " .. TOTAL_COMBINATIONS)
+    print("📊 Por telescópio: " .. COORDINATES_PER_TELESCOPE)
+    print("▶️  Continuando da posição: " .. CURRENT_POSITION)
+    print("🆕 Endpoint: 6772-189-84-176-77.ngrok-free.app")
+    
+    -- CALCULA TEMPO ESTIMADO
+    local timePerCoord = 0.3 -- segundos por coordenada
+    local estimatedSeconds = (COORDINATES_PER_TELESCOPE * timePerCoord)
+    local estimatedHours = math.floor(estimatedSeconds / 3600)
+    local estimatedDays = math.floor(estimatedHours / 24)
+    
+    print("⏱️  ESTIMATIVA DE TEMPO:")
+    if estimatedDays > 0 then
+        print("   📅 ~" .. estimatedDays .. " dias por telescópio")
+    else
+        print("   🕐 ~" .. estimatedHours .. " horas por telescópio")
+    end
+    
+    local startTime = os.time()
+    local threads = {}
+    
+    -- Distribui trabalho com inicialização rápida
+    for i = 1, TELESCOPE_COUNT do
+        local startPos = CURRENT_POSITION + ((i - 1) * COORDINATES_PER_TELESCOPE)
+        local endPos = CURRENT_POSITION + (i * COORDINATES_PER_TELESCOPE) - 1
+        
+        if i == TELESCOPE_COUNT then
+            endPos = TOTAL_COMBINATIONS - 1
+        end
+        
+        print(string.format("📋 T%d: %d → %d (%dk coords)", 
+            i, startPos, endPos, math.floor((endPos - startPos + 1)/1000)))
+        
+        local thread = task.spawn(function()
+            SequentialWorker(Telescopes[i], i, startPos, endPos)
+        end)
+        
+        table.insert(threads, thread)
+        task.wait(0.5) -- Inicialização mais rápida
+    end
+    
+    print("✅ " .. TELESCOPE_COUNT .. " TELESCÓPIOS HIGH PERFORMANCE ATIVOS!")
+    
+    while true do
+        local active = 0
+        for _, thread in ipairs(threads) do
+            if coroutine.status(thread) ~= "dead" then
+                active = active + 1
+            end
+        end
+        
+        if active == 0 then
+            local totalTime = os.time() - startTime
+            print(string.format("🏁 HIGH PERFORMANCE COMPLETO! Tempo: %dm%ds", 
+                math.floor(totalTime/60), totalTime%60))
+            break
+        end
+        
+        local elapsedTime = os.time() - startTime
+        print(string.format("⚡ %dm%ds | Telescópios: %d/%d | Limite: %d", 
+              math.floor(elapsedTime/60), elapsedTime%60, active, TELESCOPE_COUNT, MAX_TELESCOPES))
+        task.wait(30) -- Status mais frequente
+    end
+end
+
+print("⚡ HIGH PERFORMANCE TELESCOPE SCANNER v15.0")
+print("👤 Usuário: Stawyn")
+print("🕐 2025-07-01 07:25:26 UTC")
+print("🆕 Endpoint: 6772-189-84-176-77.ngrok-free.app")
+print("⚡ CONFIGURAÇÕES DE PERFORMANCE:")
+print("   🚀 LIMITE MÁXIMO: " .. MAX_TELESCOPES .. " telescópios")
+print("   ⚡ Aguardo reduzido: 0.25s + 0.05s")
+print("   📊 Status a cada 50 coordenadas")
+print("   🔥 Inicialização rápida: 0.5s entre telescópios")
+print("   📋 Logs condensados para alta performance")
+print("=" .. string.rep("=", 50))
+
+print("🔧 PARA AUMENTAR MAIS O LIMITE:")
+print("   • Altere: MAX_TELESCOPES = 50 (ou qualquer número)")
+print("   • Máximo recomendado: 30-50 telescópios")
+print("   • Performance ótima: 15-25 telescópios")
+
+LaunchHighPerformanceScanner()

@@ -1,0 +1,32 @@
+local switch = GetPartFromPort(1, "Switch")
+local Lights = GetPartsFromPort(1, "Light")
+local LifeSensor = GetPartFromPort(1, "LifeSensor")
+local Polysilicon = GetPartFromPort(1, "Polysilicon")
+
+local Red = Color3.new(1,0,0)
+local Green = Color3.new(0,1,0)
+
+local whitelist = {
+["Daeonis"] = true; -- Create a whitelist of who it wont target
+}
+
+while task.wait() do
+    local reading = LifeSensor:GetReading()
+    for player, location in pairs(reading) do
+        if whitelist[player] then
+            if (LifeSensor.Position - location).Magnitude < 10 then
+                for _, Light in pairs(Lights) do
+                    Light:SetColor(Green)
+                end
+                Polysilicon:Configure({PolysiliconMode = 1})
+                Polysilicon:Trigger()
+            else
+                for _, Light in pairs(Lights) do
+                    Light:SetColor(Red)
+                end
+                Polysilicon:Configure({PolysiliconMode = 0})
+                Polysilicon:Trigger()
+            end        
+        end
+    end
+end
