@@ -1,0 +1,66 @@
+-- Exemplo de uso do Telescópio Aprimorado
+-- Este arquivo demonstra como usar as principais funcionalidades
+
+-- Para usar o telescópio aprimorado, simplesmente execute:
+-- telescope_enhanced.txt
+
+-- FUNCIONALIDADES DISPONÍVEIS:
+
+-- 1. ENTRADA MANUAL DE COORDENADAS
+--    • Clique nos campos X1, X2, Y1, Y2 para editá-los
+--    • Digite valores entre -100 e 100
+--    • Clique em "VISUALIZAR COORDENADAS" para aplicar
+
+-- 2. COORDENADAS PREDEFINIDAS
+--    • Use os botões para locais populares:
+--      - Centro: (0,0,0,0)
+--      - Norte: (0,0,50,50)
+--      - Sul: (0,0,-50,-50)
+--      - Leste: (50,50,0,0)
+--      - Oeste: (-50,-50,0,0)
+--      - Sector A: (25,25,25,25)
+--      - Sector B: (-25,-25,25,25)
+--      - Setor Rico: (10,15,20,25)
+
+-- 3. SCANNER SEQUENCIAL
+--    • "INICIAR SEQUENCIAL": Inicia varredura automática
+--    • "PRÓXIMA COORDENADA": Avança manualmente
+--    • Aguarda 3 segundos entre cada coordenada no modo automático
+
+-- 4. HISTÓRICO DE COORDENADAS
+--    • Mantém as últimas 10 coordenadas visitadas
+--    • Clique em qualquer entrada para revisitar
+--    • Atualizado automaticamente ao usar o telescópio
+
+-- 5. COORDENADAS PRÓXIMAS
+--    • Explora áreas adjacentes às coordenadas atuais
+--    • Variação aleatória de ±5 em cada coordenada
+--    • Útil para descobrir planetas próximos
+
+-- 6. VALIDAÇÃO AUTOMÁTICA
+--    • Coordenadas fora do limite (-100 a 100) são rejeitadas
+--    • Exibe mensagens de erro claras
+--    • Previne configurações inválidas no telescópio
+
+-- 7. INFORMAÇÕES EM TEMPO REAL
+--    • Mostra coordenadas atuais
+--    • Exibe nome e tipo do planeta (se encontrado)
+--    • Status das operações em tempo real
+
+-- CONECTANDO COMPONENTES:
+-- • Porta 1: Screen (obrigatório)
+-- • Porta 1: Keyboard (obrigatório para entrada manual)
+-- • Qualquer: Telescope (pelo menos um obrigatório)
+-- • Qualquer: Modem (opcional, para logs externos)
+
+-- EXEMPLO DE CONFIGURAÇÃO:
+-- 1. Conecte Screen na porta 1
+-- 2. Conecte Keyboard na porta 1 (mesmo microcontrolador)
+-- 3. Conecte um ou mais Telescopes
+-- 4. Execute telescope_enhanced.txt
+-- 5. Use a interface para navegar!
+
+print("📖 Exemplo/Documentação do Telescópio Aprimorado carregado!")
+print("🔧 Para usar: Execute o arquivo telescope_enhanced.txt")
+print("📋 Certifique-se de ter Screen e Keyboard conectados na porta 1")
+print("🔭 Certifique-se de ter pelo menos um Telescópio conectado")
