@@ -1,0 +1,616 @@
+-- Enhanced Telescope Interface with Manual Coordinate Selection
+-- Allows users to input specific coordinates, use presets, scan sequentially, and view history
+-- 
+-- Requirements:
+-- • Screen connected to Port 1
+-- • Keyboard connected to Port 1  
+-- • At least one Telescope connected
+-- • Optional: Modem for external logging
+
+local Telescopes = GetParts("Telescope")
+local Screen = GetPartFromPort(1, "Screen")
+local Keyboard = GetPartFromPort(1, "Keyboard")
+local Modem = GetPart("Modem")
+
+-- Verificação de componentes essenciais
+if not Screen then
+    error("❌ Screen não encontrado na porta 1! Conecte um Screen na porta 1.")
+end
+
+if not Keyboard then
+    print("⚠️ Keyboard não encontrado na porta 1. Entrada manual será limitada.")
+end
+
+if not Telescopes or #Telescopes == 0 then
+    error("❌ Nenhum telescópio encontrado! Conecte pelo menos um telescópio.")
+end
+
+print("✅ Componentes verificados:")
+print("   📺 Screen: Conectado (Porta 1)")
+print("   ⌨️ Keyboard: " .. (Keyboard and "Conectado (Porta 1)" or "Não encontrado"))
+print("   🔭 Telescópios: " .. #Telescopes .. " encontrado(s)")
+print("   📡 Modem: " .. (Modem and "Disponível" or "Não disponível"))
+
+-- Configurações básicas
+local MIN_COORD = -100
+local MAX_COORD = 100
+
+-- Estado da aplicação
+local currentCoordinates = {x1 = 0, x2 = 0, y1 = 0, y2 = 0}
+local coordinateHistory = {}
+local isSequentialMode = false
+local sequentialPosition = 0
+
+-- Coordenadas predefinidas populares
+local presetCoordinates = {
+    {name = "Centro", x1 = 0, x2 = 0, y1 = 0, y2 = 0},
+    {name = "Norte", x1 = 0, x2 = 0, y1 = 50, y2 = 50},
+    {name = "Sul", x1 = 0, x2 = 0, y1 = -50, y2 = -50},
+    {name = "Leste", x1 = 50, x2 = 50, y1 = 0, y2 = 0},
+    {name = "Oeste", x1 = -50, x2 = -50, y1 = 0, y2 = 0},
+    {name = "Sector A", x1 = 25, x2 = 25, y1 = 25, y2 = 25},
+    {name = "Sector B", x1 = -25, x2 = -25, y1 = 25, y2 = 25},
+    {name = "Setor Rico", x1 = 10, x2 = 15, y1 = 20, y2 = 25}
+}
+
+-- Coordenadas favoritas (podem ser adicionadas pelo usuário)
+local favoriteCoordinates = {}
+
+-- Referências dos elementos UI
+local UI = {}
+local activeInputField = nil
+
+-- Funções utilitárias
+local function ValidateCoordinate(value)
+    local num = tonumber(value)
+    if not num then return false end
+    return num >= MIN_COORD and num <= MAX_COORD
+end
+
+local function SaveToHistory(coords)
+    local entry = {
+        x1 = coords.x1, x2 = coords.x2, y1 = coords.y1, y2 = coords.y2,
+        timestamp = os.time(),
+        name = string.format("(%d,%d,%d,%d)", coords.x1, coords.x2, coords.y1, coords.y2)
+    }
+    
+    -- Evita duplicatas recentes
+    for i, item in ipairs(coordinateHistory) do
+        if item.x1 == coords.x1 and item.x2 == coords.x2 and 
+           item.y1 == coords.y1 and item.y2 == coords.y2 then
+            table.remove(coordinateHistory, i)
+            break
+        end
+    end
+    
+    table.insert(coordinateHistory, 1, entry)
+    
+    -- Mantém apenas os últimos 10 registros
+    if #coordinateHistory > 10 then
+        coordinateHistory[11] = nil
+    end
+    
+    UpdateHistoryDisplay()
+end
+
+local function ConfigureTelescope(coords)
+    if not Telescopes or #Telescopes == 0 then
+        UI.statusLabel.Text = "❌ Nenhum telescópio encontrado!"
+        return false
+    end
+    
+    local success, result = pcall(function()
+        Telescopes[1]:Configure({ 
+            ViewCoordinates = string.format("%d,%d,%d,%d,false", 
+                coords.x1, coords.x2, coords.y1, coords.y2) 
+        })
+    end)
+    
+    if success then
+        currentCoordinates = coords
+        UI.statusLabel.Text = string.format("✅ Visualizando: (%d,%d,%d,%d)", 
+            coords.x1, coords.x2, coords.y1, coords.y2)
+        SaveToHistory(coords)
+        UpdateCurrentDisplay()
+        
+        -- Tenta obter informações do planeta
+        task.wait(0.5)
+        GetPlanetInfo()
+        return true
+    else
+        UI.statusLabel.Text = "❌ Erro ao configurar telescópio"
+        return false
+    end
+end
+
+local function GetPlanetInfo()
+    if not Telescopes or #Telescopes == 0 then return end
+    
+    local success, planetData = pcall(function()
+        return Telescopes[1]:GetCoordinate()
+    end)
+    
+    if success and planetData then
+        local planetName = planetData.Name or planetData.name or planetData.PlanetName or "Desconhecido"
+        if planetName and planetName ~= "" and planetName ~= "SECTOR () ()" then
+            UI.planetInfoLabel.Text = string.format("🌎 Planeta: %s", planetName)
+            if planetData.Type then
+                UI.planetInfoLabel.Text = UI.planetInfoLabel.Text .. string.format("\n📍 Tipo: %s", planetData.Type)
+            end
+        else
+            UI.planetInfoLabel.Text = "🌌 Espaço vazio"
+        end
+    else
+        UI.planetInfoLabel.Text = "❓ Verificando..."
+    end
+end
+
+-- Função sequencial (adaptada de s3.txt)
+local function PositionToCoordinates(position)
+    local COORD_RANGE = MAX_COORD - MIN_COORD + 1
+    local TOTAL_COMBINATIONS = COORD_RANGE ^ 4
+    
+    if position >= TOTAL_COMBINATIONS then
+        return nil
+    end
+    
+    local temp = position
+    local x1 = MIN_COORD + (temp % COORD_RANGE)
+    temp = math.floor(temp / COORD_RANGE)
+    
+    local x2 = MIN_COORD + (temp % COORD_RANGE)
+    temp = math.floor(temp / COORD_RANGE)
+    
+    local y1 = MIN_COORD + (temp % COORD_RANGE)
+    temp = math.floor(temp / COORD_RANGE)
+    
+    local y2 = MIN_COORD + (temp % COORD_RANGE)
+    
+    return {x1 = x1, x2 = x2, y1 = y1, y2 = y2, position = position}
+end
+
+local function NextSequentialCoordinates()
+    local coords = PositionToCoordinates(sequentialPosition)
+    if coords then
+        sequentialPosition = sequentialPosition + 1
+        return coords
+    end
+    return nil
+end
+
+-- Função para criar interface
+local function CreateUI()
+    Screen:ClearElements()
+    
+    -- Background
+    UI.background = Screen:CreateElement("Frame", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = Color3.fromRGB(50, 50, 50),
+        BorderSizePixel = 0
+    })
+    
+    -- Título
+    UI.titleLabel = Screen:CreateElement("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 30),
+        Position = UDim2.new(0, 0, 0, 0),
+        Text = "🔭 TELESCÓPIO APRIMORADO",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(70, 130, 180),
+        BorderSizePixel = 0
+    })
+    
+    -- Seção de entrada de coordenadas
+    local yOffset = 35
+    UI.coordsHeader = Screen:CreateElement("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, yOffset),
+        Text = "📍 COORDENADAS MANUAIS",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(80, 80, 80),
+        BorderSizePixel = 0
+    })
+    
+    yOffset = yOffset + 25
+    local inputWidth = 0.2
+    local inputHeight = 25
+    
+    -- Labels e campos de entrada
+    local coordLabels = {"X1:", "X2:", "Y1:", "Y2:"}
+    local coordKeys = {"x1", "x2", "y1", "y2"}
+    UI.inputFields = {}
+    
+    for i, label in ipairs(coordLabels) do
+        local xPos = (i - 1) * 0.25
+        
+        -- Label
+        Screen:CreateElement("TextLabel", {
+            Size = UDim2.new(0.05, 0, 0, inputHeight),
+            Position = UDim2.new(xPos, 0, 0, yOffset),
+            Text = label,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextScaled = true,
+            BackgroundTransparency = 1,
+            TextXAlignment = Enum.TextXAlignment.Right
+        })
+        
+        -- Campo de entrada
+        local inputField = Screen:CreateElement("TextButton", {
+            Size = UDim2.new(inputWidth, 0, 0, inputHeight),
+            Position = UDim2.new(xPos + 0.05, 0, 0, yOffset),
+            Text = "0",
+            TextColor3 = Color3.fromRGB(0, 0, 0),
+            TextScaled = true,
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            BorderSizePixel = 1
+        })
+        
+        UI.inputFields[coordKeys[i]] = inputField
+        
+        -- Conexão para seleção do campo
+        inputField.MouseButton1Click:Connect(function()
+            -- Reset cores de todos os campos
+            for _, field in pairs(UI.inputFields) do
+                field.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            end
+            -- Destaca o campo ativo
+            inputField.BackgroundColor3 = Color3.fromRGB(200, 255, 200)
+            activeInputField = {field = inputField, key = coordKeys[i]}
+        end)
+    end
+    
+    yOffset = yOffset + 35
+    
+    -- Botão para aplicar coordenadas
+    UI.applyButton = Screen:CreateElement("TextButton", {
+        Size = UDim2.new(0.4, 0, 0, 30),
+        Position = UDim2.new(0.05, 0, 0, yOffset),
+        Text = "🎯 VISUALIZAR COORDENADAS",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(0, 150, 0),
+        BorderSizePixel = 0
+    })
+    
+    UI.applyButton.MouseButton1Click:Connect(function()
+        local coords = {}
+        local valid = true
+        
+        for key, field in pairs(UI.inputFields) do
+            local value = field.Text
+            if ValidateCoordinate(value) then
+                coords[key] = tonumber(value)
+            else
+                valid = false
+                UI.statusLabel.Text = string.format("❌ Coordenada %s inválida! (%d a %d)", 
+                    key:upper(), MIN_COORD, MAX_COORD)
+                break
+            end
+        end
+        
+        if valid then
+            ConfigureTelescope(coords)
+        end
+    end)
+    
+    -- Botão para coordenadas próximas
+    UI.nearbyButton = Screen:CreateElement("TextButton", {
+        Size = UDim2.new(0.25, 0, 0, 30),
+        Position = UDim2.new(0.45, 0, 0, yOffset),
+        Text = "🔄 PRÓXIMAS",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(180, 100, 0),
+        BorderSizePixel = 0
+    })
+    
+    -- Botão para salvar como favorito
+    UI.saveButton = Screen:CreateElement("TextButton", {
+        Size = UDim2.new(0.25, 0, 0, 30),
+        Position = UDim2.new(0.72, 0, 0, yOffset),
+        Text = "⭐ SALVAR",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(200, 150, 0),
+        BorderSizePixel = 0
+    })
+    
+    UI.nearbyButton.MouseButton1Click:Connect(function()
+        local coords = {
+            x1 = currentCoordinates.x1 + math.random(-5, 5),
+            x2 = currentCoordinates.x2 + math.random(-5, 5),
+            y1 = currentCoordinates.y1 + math.random(-5, 5),
+            y2 = currentCoordinates.y2 + math.random(-5, 5)
+        }
+        
+        -- Validação
+        for key, value in pairs(coords) do
+            coords[key] = math.max(MIN_COORD, math.min(MAX_COORD, value))
+        end
+        
+        ConfigureTelescope(coords)
+    end)
+    
+    UI.saveButton.MouseButton1Click:Connect(function()
+        local coordName = string.format("Fav_%d_%d_%d_%d", 
+            currentCoordinates.x1, currentCoordinates.x2, 
+            currentCoordinates.y1, currentCoordinates.y2)
+        
+        local favorite = {
+            name = coordName,
+            x1 = currentCoordinates.x1,
+            x2 = currentCoordinates.x2,
+            y1 = currentCoordinates.y1,
+            y2 = currentCoordinates.y2
+        }
+        
+        table.insert(favoriteCoordinates, favorite)
+        UI.statusLabel.Text = "⭐ Coordenadas salvas como favorito!"
+        
+        -- Limita a 5 favoritos
+        if #favoriteCoordinates > 5 then
+            table.remove(favoriteCoordinates, 1)
+        end
+    end)
+    
+    yOffset = yOffset + 40
+    
+    -- Seção de coordenadas predefinidas
+    UI.presetsHeader = Screen:CreateElement("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, yOffset),
+        Text = "⭐ COORDENADAS PREDEFINIDAS",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(80, 80, 80),
+        BorderSizePixel = 0
+    })
+    
+    yOffset = yOffset + 25
+    
+    -- Botões de presets (2 por linha)
+    for i, preset in ipairs(presetCoordinates) do
+        local row = math.floor((i - 1) / 2)
+        local col = (i - 1) % 2
+        
+        local button = Screen:CreateElement("TextButton", {
+            Size = UDim2.new(0.45, 0, 0, 25),
+            Position = UDim2.new(0.05 + col * 0.5, 0, 0, yOffset + row * 30),
+            Text = preset.name,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextScaled = true,
+            BackgroundColor3 = Color3.fromRGB(100, 100, 180),
+            BorderSizePixel = 1
+        })
+        
+        button.MouseButton1Click:Connect(function()
+            ConfigureTelescope(preset)
+        end)
+    end
+    
+    yOffset = yOffset + math.ceil(#presetCoordinates / 2) * 30 + 10
+    
+    -- Seção sequencial
+    UI.sequentialHeader = Screen:CreateElement("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, yOffset),
+        Text = "🔄 SCANNER SEQUENCIAL",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(80, 80, 80),
+        BorderSizePixel = 0
+    })
+    
+    yOffset = yOffset + 25
+    
+    UI.sequentialButton = Screen:CreateElement("TextButton", {
+        Size = UDim2.new(0.4, 0, 0, 30),
+        Position = UDim2.new(0.05, 0, 0, yOffset),
+        Text = "▶️ INICIAR SEQUENCIAL",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(150, 0, 150),
+        BorderSizePixel = 0
+    })
+    
+    UI.nextButton = Screen:CreateElement("TextButton", {
+        Size = UDim2.new(0.4, 0, 0, 30),
+        Position = UDim2.new(0.55, 0, 0, yOffset),
+        Text = "⏭️ PRÓXIMA COORDENADA",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(0, 100, 150),
+        BorderSizePixel = 0
+    })
+    
+    UI.sequentialButton.MouseButton1Click:Connect(function()
+        isSequentialMode = not isSequentialMode
+        if isSequentialMode then
+            UI.sequentialButton.Text = "⏸️ PARAR SEQUENCIAL"
+            UI.sequentialButton.BackgroundColor3 = Color3.fromRGB(150, 50, 0)
+            local coords = NextSequentialCoordinates()
+            if coords then ConfigureTelescope(coords) end
+        else
+            UI.sequentialButton.Text = "▶️ INICIAR SEQUENCIAL"
+            UI.sequentialButton.BackgroundColor3 = Color3.fromRGB(150, 0, 150)
+        end
+    end)
+    
+    UI.nextButton.MouseButton1Click:Connect(function()
+        local coords = NextSequentialCoordinates()
+        if coords then
+            ConfigureTelescope(coords)
+        else
+            UI.statusLabel.Text = "⚠️ Fim da sequência alcançado"
+        end
+    end)
+    
+    yOffset = yOffset + 40
+    
+    -- Seção de histórico
+    UI.historyHeader = Screen:CreateElement("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, yOffset),
+        Text = "📜 HISTÓRICO RECENTE",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(80, 80, 80),
+        BorderSizePixel = 0
+    })
+    
+    yOffset = yOffset + 25
+    
+    -- Scroll para histórico
+    UI.historyScroll = Screen:CreateElement("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 0, 80),
+        Position = UDim2.new(0, 0, 0, yOffset),
+        BackgroundColor3 = Color3.fromRGB(40, 40, 40),
+        BorderSizePixel = 1,
+        ScrollBarThickness = 8
+    })
+    
+    yOffset = yOffset + 90
+    
+    -- Informações atuais
+    UI.currentHeader = Screen:CreateElement("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, yOffset),
+        Text = "📊 INFORMAÇÕES ATUAIS",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(80, 80, 80),
+        BorderSizePixel = 0
+    })
+    
+    yOffset = yOffset + 25
+    
+    UI.currentCoordsLabel = Screen:CreateElement("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, yOffset),
+        Text = "📍 Coordenadas: (0,0,0,0)",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundTransparency = 1,
+        TextXAlignment = Enum.TextXAlignment.Left
+    })
+    
+    yOffset = yOffset + 25
+    
+    UI.planetInfoLabel = Screen:CreateElement("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 40),
+        Position = UDim2.new(0, 0, 0, yOffset),
+        Text = "🌌 Pronto para visualizar",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundTransparency = 1,
+        TextXAlignment = Enum.TextXAlignment.Left
+    })
+    
+    yOffset = yOffset + 50
+    
+    -- Status
+    UI.statusLabel = Screen:CreateElement("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 30),
+        Position = UDim2.new(0, 0, 0, yOffset),
+        Text = "✅ Interface carregada - Selecione coordenadas",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        BackgroundColor3 = Color3.fromRGB(0, 100, 0),
+        BorderSizePixel = 0
+    })
+end
+
+function UpdateCurrentDisplay()
+    UI.currentCoordsLabel.Text = string.format("📍 Coordenadas: (%d,%d,%d,%d)", 
+        currentCoordinates.x1, currentCoordinates.x2, currentCoordinates.y1, currentCoordinates.y2)
+    
+    -- Atualiza campos de entrada
+    for key, field in pairs(UI.inputFields) do
+        field.Text = tostring(currentCoordinates[key])
+    end
+end
+
+function UpdateHistoryDisplay()
+    -- Limpa histórico existente
+    for _, child in pairs(UI.historyScroll:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    
+    -- Adiciona entradas do histórico
+    for i, entry in ipairs(coordinateHistory) do
+        local historyButton = Screen:CreateElement("TextButton", {
+            Size = UDim2.new(1, -10, 0, 20),
+            Position = UDim2.new(0, 5, 0, (i - 1) * 25),
+            Text = entry.name,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextScaled = true,
+            BackgroundColor3 = Color3.fromRGB(60, 60, 60),
+            BorderSizePixel = 1,
+            Parent = UI.historyScroll
+        })
+        
+        historyButton.MouseButton1Click:Connect(function()
+            ConfigureTelescope(entry)
+        end)
+    end
+    
+    UI.historyScroll.CanvasSize = UDim2.new(0, 0, 0, #coordinateHistory * 25)
+end
+
+-- Conecta entrada de teclado
+if Keyboard then
+    Keyboard.TextInputted:Connect(function(text, player)
+        if activeInputField then
+            local input = text:sub(1, -2) -- Remove quebra de linha
+            if ValidateCoordinate(input) then
+                activeInputField.field.Text = input
+                activeInputField.field.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                activeInputField = nil
+                UI.statusLabel.Text = "✅ Coordenada atualizada"
+            else
+                UI.statusLabel.Text = string.format("❌ Valor inválido! Use números de %d a %d", 
+                    MIN_COORD, MAX_COORD)
+            end
+        end
+    end)
+else
+    print("⚠️ Entrada de teclado não disponível. Use apenas os botões predefinidos.")
+end
+
+-- Scanner sequencial automático
+task.spawn(function()
+    while true do
+        if isSequentialMode then
+            task.wait(3) -- Aguarda 3 segundos entre coordenadas
+            local coords = NextSequentialCoordinates()
+            if coords then
+                ConfigureTelescope(coords)
+            else
+                isSequentialMode = false
+                UI.sequentialButton.Text = "▶️ INICIAR SEQUENCIAL"
+                UI.sequentialButton.BackgroundColor3 = Color3.fromRGB(150, 0, 150)
+                UI.statusLabel.Text = "⚠️ Scanner sequencial completado"
+            end
+        else
+            task.wait(1)
+        end
+    end
+end)
+
+-- Inicialização
+print("🔭 Carregando Telescópio Aprimorado...")
+CreateUI()
+UpdateCurrentDisplay()
+UpdateHistoryDisplay()
+
+print("✅ Telescópio Aprimorado carregado!")
+print("📝 Recursos disponíveis:")
+print("   🎯 Entrada manual de coordenadas")
+print("   ⭐ Coordenadas predefinidas")
+print("   🔄 Scanner sequencial automático")
+print("   📜 Histórico de coordenadas visitadas")
+print("   ✅ Validação de entrada")
+print("   🌍 Informações de planetas em tempo real")
