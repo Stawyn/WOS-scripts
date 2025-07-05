@@ -1,0 +1,203 @@
+-- ========================================
+-- SIMPLE GYRO TO CARTESIAN CONVERTER
+-- Standalone script for Waste of Space
+-- ========================================
+
+local gyro = GetPartFromPort(1, "Gyro") -- Connect gyro to port 1
+
+-- Configuration
+local calibration_pitch = 0
+local calibration_yaw = 0
+local calibration_roll = 0
+
+-- ========================================
+-- UTILITY FUNCTIONS
+-- ========================================
+
+local function NormalizeAngle(angle)
+    while angle > 180 do angle = angle - 360 end
+    while angle < -180 do angle = angle + 360 end
+    return angle
+end
+
+local function DegreesToRadians(degrees)
+    return degrees * (math.pi / 180)
+end
+
+local function Round(number, precision)
+    local mult = 10 ^ (precision or 3)
+    return math.floor(number * mult + 0.5) / mult
+end
+
+-- ========================================
+-- GYRO READING
+-- ========================================
+
+local function ReadGyro()
+    local success, data = pcall(function()
+        return gyro:GetReading() -- Adjust based on actual WOS gyro API
+    end)
+    
+    if not success then
+        warn("Failed to read gyro: " .. tostring(data))
+        return nil
+    end
+    
+    -- Extract angles - adjust based on actual data structure
+    local pitch = data.Pitch or data.pitch or data.X or 0
+    local yaw = data.Yaw or data.yaw or data.Y or 0
+    local roll = data.Roll or data.roll or data.Z or 0
+    
+    return {
+        pitch = NormalizeAngle(pitch),
+        yaw = NormalizeAngle(yaw), 
+        roll = NormalizeAngle(roll)
+    }
+end
+
+-- ========================================
+-- CALIBRATION
+-- ========================================
+
+local function Calibrate()
+    local reading = ReadGyro()
+    if not reading then
+        print("❌ Calibration failed - cannot read gyro")
+        return false
+    end
+    
+    calibration_pitch = reading.pitch
+    calibration_yaw = reading.yaw
+    calibration_roll = reading.roll
+    
+    print("✅ Calibrated at:")
+    print("   Pitch: " .. Round(calibration_pitch) .. "°")
+    print("   Yaw: " .. Round(calibration_yaw) .. "°")
+    print("   Roll: " .. Round(calibration_roll) .. "°")
+    return true
+end
+
+local function GetRelativeAngles()
+    local reading = ReadGyro()
+    if not reading then return nil end
+    
+    return {
+        pitch = NormalizeAngle(reading.pitch - calibration_pitch),
+        yaw = NormalizeAngle(reading.yaw - calibration_yaw),
+        roll = NormalizeAngle(reading.roll - calibration_roll)
+    }
+end
+
+-- ========================================
+-- COORDINATE CONVERSION
+-- ========================================
+
+local function SphericalToCartesian(pitch, yaw, radius)
+    radius = radius or 1
+    
+    local theta = DegreesToRadians(pitch)  -- polar angle
+    local phi = DegreesToRadians(yaw)      -- azimuthal angle
+    
+    local x = radius * math.sin(theta) * math.cos(phi)
+    local y = radius * math.sin(theta) * math.sin(phi)
+    local z = radius * math.cos(theta)
+    
+    return {
+        x = Round(x, 3),
+        y = Round(y, 3),
+        z = Round(z, 3),
+        magnitude = Round(radius, 3)
+    }
+end
+
+local function GetCartesianCoordinates(radius, use_relative)
+    radius = radius or 1
+    local angles
+    
+    if use_relative then
+        angles = GetRelativeAngles()
+    else
+        angles = ReadGyro()
+    end
+    
+    if not angles then return nil end
+    
+    return SphericalToCartesian(angles.pitch, angles.yaw, radius)
+end
+
+-- ========================================
+-- OUTPUT FUNCTIONS
+-- ========================================
+
+local function FormatCoords(coords, label)
+    if not coords then return "❌ Invalid coordinates" end
+    return string.format("%s: X=%.3f, Y=%.3f, Z=%.3f", 
+                        label or "Coords", coords.x, coords.y, coords.z)
+end
+
+local function PrintStatus()
+    print("========== GYRO COORDINATES ==========")
+    
+    local raw = ReadGyro()
+    if raw then
+        print("📡 Raw Gyro:")
+        print("   " .. FormatCoords({x=raw.pitch, y=raw.yaw, z=raw.roll}, "P/Y/R"))
+    end
+    
+    local relative = GetRelativeAngles()
+    if relative then
+        print("📐 Relative Angles:")
+        print("   " .. FormatCoords({x=relative.pitch, y=relative.yaw, z=relative.roll}, "ΔP/ΔY/ΔR"))
+    end
+    
+    local coords_abs = GetCartesianCoordinates(1, false)
+    local coords_rel = GetCartesianCoordinates(1, true)
+    
+    if coords_abs then
+        print("🌍 " .. FormatCoords(coords_abs, "Absolute XYZ"))
+    end
+    
+    if coords_rel then
+        print("🎯 " .. FormatCoords(coords_rel, "Relative XYZ"))
+    end
+    
+    print("=====================================")
+end
+
+-- ========================================
+-- MAIN EXECUTION
+-- ========================================
+
+print("🚀 GYRO COORDINATE CONVERTER STARTED")
+print("📋 Commands:")
+print("   - Will auto-calibrate in 3 seconds")
+print("   - Monitoring coordinates every 5 seconds")
+print("   - Ctrl+C to stop")
+
+task.wait(3)
+
+-- Auto-calibrate
+if Calibrate() then
+    print("🔄 Starting coordinate monitoring...")
+    
+    while true do
+        PrintStatus()
+        
+        -- Example usage: Get direction vector for other systems
+        local direction = GetCartesianCoordinates(1, true)
+        if direction then
+            -- This vector can be used for:
+            -- - Navigation systems
+            -- - Pointing mechanisms  
+            -- - Orientation tracking
+            -- - Ship alignment
+            
+            -- Example: Point another gyro based on our direction
+            -- other_gyro:PointAt(Vector3.new(direction.x * 100, direction.y * 100, direction.z * 100))
+        end
+        
+        task.wait(5)
+    end
+else
+    print("❌ Failed to calibrate. Check gyro connection.")
+end

@@ -1,0 +1,361 @@
+-- ========================================
+-- SPHERICAL TO CARTESIAN COORDINATE CONVERTER
+-- For Waste of Space - Using Gyroscope Data
+-- ========================================
+
+local gyro = GetPartFromPort(1, "Gyro") -- Connect gyro to port 1 via cjoint
+
+-- ========================================
+-- CONFIGURATION AND CALIBRATION
+-- ========================================
+
+local CONFIG = {
+    -- Calibration reference point (set when calibrating)
+    calibration = {
+        pitch = 0,
+        yaw = 0,
+        roll = 0
+    },
+    
+    -- Filtering settings for smooth readings
+    filtering = {
+        enabled = true,
+        smoothing_factor = 0.8, -- 0.0 = no smoothing, 1.0 = maximum smoothing
+        history_size = 5
+    },
+    
+    -- Output formatting
+    precision = 3, -- decimal places for output
+    
+    -- Default radius for unit vector calculations
+    default_radius = 1
+}
+
+-- History for filtering
+local gyro_history = {
+    pitch = {},
+    yaw = {},
+    roll = {}
+}
+
+-- ========================================
+-- UTILITY FUNCTIONS
+-- ========================================
+
+-- Normalize angle to [-180, 180] range
+local function NormalizeAngle(angle)
+    while angle > 180 do
+        angle = angle - 360
+    end
+    while angle < -180 do
+        angle = angle + 360
+    end
+    return angle
+end
+
+-- Convert degrees to radians
+local function DegreesToRadians(degrees)
+    return degrees * (math.pi / 180)
+end
+
+-- Convert radians to degrees
+local function RadiansToDegrees(radians)
+    return radians * (180 / math.pi)
+end
+
+-- Round number to specified precision
+local function RoundToPrecision(number, precision)
+    local mult = 10 ^ precision
+    return math.floor(number * mult + 0.5) / mult
+end
+
+-- ========================================
+-- GYRO DATA READING AND FILTERING
+-- ========================================
+
+-- Read raw gyro data
+local function ReadGyroRaw()
+    -- Note: In WOS, gyro methods may vary. Common patterns:
+    -- gyro:GetReading(), gyro:GetOrientation(), or individual methods
+    -- This is a template - adjust based on actual WOS gyro API
+    
+    local success, data = pcall(function()
+        return gyro:GetReading() -- or gyro:GetOrientation()
+    end)
+    
+    if not success then
+        warn("Failed to read gyro data: " .. tostring(data))
+        return nil
+    end
+    
+    -- Extract pitch, yaw, roll from data
+    -- Adjust these based on actual WOS gyro data structure
+    local pitch = data.Pitch or data.pitch or data.X or 0
+    local yaw = data.Yaw or data.yaw or data.Y or 0  
+    local roll = data.Roll or data.roll or data.Z or 0
+    
+    return {
+        pitch = NormalizeAngle(pitch),
+        yaw = NormalizeAngle(yaw),
+        roll = NormalizeAngle(roll)
+    }
+end
+
+-- Add reading to history for filtering
+local function AddToHistory(reading)
+    if not reading then return end
+    
+    -- Add to history
+    table.insert(gyro_history.pitch, reading.pitch)
+    table.insert(gyro_history.yaw, reading.yaw)
+    table.insert(gyro_history.roll, reading.roll)
+    
+    -- Maintain history size
+    local max_size = CONFIG.filtering.history_size
+    if #gyro_history.pitch > max_size then
+        table.remove(gyro_history.pitch, 1)
+    end
+    if #gyro_history.yaw > max_size then
+        table.remove(gyro_history.yaw, 1)
+    end
+    if #gyro_history.roll > max_size then
+        table.remove(gyro_history.roll, 1)
+    end
+end
+
+-- Apply smoothing filter to readings
+local function ApplySmoothing(current, history)
+    if not CONFIG.filtering.enabled or #history < 2 then
+        return current
+    end
+    
+    local sum = 0
+    for i = 1, #history do
+        sum = sum + history[i]
+    end
+    local average = sum / #history
+    
+    local factor = CONFIG.filtering.smoothing_factor
+    return current * (1 - factor) + average * factor
+end
+
+-- Get filtered gyro reading
+local function ReadGyroFiltered()
+    local raw = ReadGyroRaw()
+    if not raw then return nil end
+    
+    AddToHistory(raw)
+    
+    return {
+        pitch = ApplySmoothing(raw.pitch, gyro_history.pitch),
+        yaw = ApplySmoothing(raw.yaw, gyro_history.yaw),
+        roll = ApplySmoothing(raw.roll, gyro_history.roll)
+    }
+end
+
+-- ========================================
+-- CALIBRATION SYSTEM
+-- ========================================
+
+-- Calibrate current position as reference point
+local function Calibrate()
+    local reading = ReadGyroRaw()
+    if not reading then
+        warn("Failed to calibrate: Cannot read gyro data")
+        return false
+    end
+    
+    CONFIG.calibration.pitch = reading.pitch
+    CONFIG.calibration.yaw = reading.yaw
+    CONFIG.calibration.roll = reading.roll
+    
+    print("Calibration complete:")
+    print("  Reference Pitch: " .. RoundToPrecision(reading.pitch, CONFIG.precision))
+    print("  Reference Yaw: " .. RoundToPrecision(reading.yaw, CONFIG.precision))
+    print("  Reference Roll: " .. RoundToPrecision(reading.roll, CONFIG.precision))
+    
+    return true
+end
+
+-- Get relative angles from calibration point
+local function GetRelativeAngles()
+    local reading = ReadGyroFiltered()
+    if not reading then return nil end
+    
+    return {
+        pitch = NormalizeAngle(reading.pitch - CONFIG.calibration.pitch),
+        yaw = NormalizeAngle(reading.yaw - CONFIG.calibration.yaw),
+        roll = NormalizeAngle(reading.roll - CONFIG.calibration.roll)
+    }
+end
+
+-- ========================================
+-- COORDINATE CONVERSION FUNCTIONS
+-- ========================================
+
+-- Convert spherical coordinates to Cartesian coordinates
+-- θ (theta) = pitch angle (polar angle)
+-- φ (phi) = yaw angle (azimuthal angle)  
+-- r = radius (default 1 for unit vector)
+local function SphericalToCartesian(pitch, yaw, radius)
+    radius = radius or CONFIG.default_radius
+    
+    -- Convert degrees to radians for math functions
+    local theta = DegreesToRadians(pitch)  -- polar angle
+    local phi = DegreesToRadians(yaw)      -- azimuthal angle
+    
+    -- Apply spherical to Cartesian conversion formulas
+    local x = radius * math.sin(theta) * math.cos(phi)
+    local y = radius * math.sin(theta) * math.sin(phi)
+    local z = radius * math.cos(theta)
+    
+    return {
+        x = RoundToPrecision(x, CONFIG.precision),
+        y = RoundToPrecision(y, CONFIG.precision),
+        z = RoundToPrecision(z, CONFIG.precision),
+        magnitude = RoundToPrecision(radius, CONFIG.precision)
+    }
+end
+
+-- Get current Cartesian coordinates from gyro
+local function GetCartesianCoordinates(radius, use_relative)
+    local angles
+    
+    if use_relative then
+        angles = GetRelativeAngles()
+    else
+        angles = ReadGyroFiltered()
+    end
+    
+    if not angles then
+        warn("Failed to get gyro angles")
+        return nil
+    end
+    
+    return SphericalToCartesian(angles.pitch, angles.yaw, radius)
+end
+
+-- ========================================
+-- UTILITY FUNCTIONS FOR DIFFERENT USE CASES
+-- ========================================
+
+-- Get unit direction vector (radius = 1)
+local function GetDirectionVector(use_relative)
+    use_relative = use_relative ~= false -- default to true
+    return GetCartesianCoordinates(1, use_relative)
+end
+
+-- Get pointing vector for navigation (scaled by distance)
+local function GetNavigationVector(distance, use_relative)
+    use_relative = use_relative ~= false -- default to true
+    return GetCartesianCoordinates(distance, use_relative)
+end
+
+-- Get formatted coordinate string
+local function FormatCoordinates(coords, label)
+    if not coords then return "Invalid coordinates" end
+    
+    label = label or "Coordinates"
+    return string.format("%s: X=%.3f, Y=%.3f, Z=%.3f (|r|=%.3f)", 
+                        label, coords.x, coords.y, coords.z, coords.magnitude)
+end
+
+-- ========================================
+-- MAIN INTERFACE FUNCTIONS
+-- ========================================
+
+-- Print current status and coordinates
+local function PrintStatus()
+    print("========= GYRO COORDINATE CONVERTER =========")
+    
+    local raw = ReadGyroRaw()
+    if raw then
+        print("Raw Gyro Data:")
+        print("  Pitch: " .. RoundToPrecision(raw.pitch, CONFIG.precision) .. "°")
+        print("  Yaw: " .. RoundToPrecision(raw.yaw, CONFIG.precision) .. "°")
+        print("  Roll: " .. RoundToPrecision(raw.roll, CONFIG.precision) .. "°")
+    end
+    
+    local relative = GetRelativeAngles()
+    if relative then
+        print("Relative to Calibration:")
+        print("  Pitch: " .. RoundToPrecision(relative.pitch, CONFIG.precision) .. "°")
+        print("  Yaw: " .. RoundToPrecision(relative.yaw, CONFIG.precision) .. "°")
+        print("  Roll: " .. RoundToPrecision(relative.roll, CONFIG.precision) .. "°")
+    end
+    
+    local coords_abs = GetCartesianCoordinates(1, false)
+    local coords_rel = GetCartesianCoordinates(1, true)
+    
+    if coords_abs then
+        print(FormatCoordinates(coords_abs, "Absolute Direction"))
+    end
+    
+    if coords_rel then
+        print(FormatCoordinates(coords_rel, "Relative Direction"))
+    end
+    
+    print("============================================")
+end
+
+-- ========================================
+-- EXPORT FUNCTIONS (for use in other scripts)
+-- ========================================
+
+return {
+    -- Core functions
+    GetCartesianCoordinates = GetCartesianCoordinates,
+    GetDirectionVector = GetDirectionVector,
+    GetNavigationVector = GetNavigationVector,
+    SphericalToCartesian = SphericalToCartesian,
+    
+    -- Gyro reading
+    ReadGyroRaw = ReadGyroRaw,
+    ReadGyroFiltered = ReadGyroFiltered,
+    GetRelativeAngles = GetRelativeAngles,
+    
+    -- Calibration
+    Calibrate = Calibrate,
+    
+    -- Utilities
+    NormalizeAngle = NormalizeAngle,
+    DegreesToRadians = DegreesToRadians,
+    RadiansToDegrees = RadiansToDegrees,
+    FormatCoordinates = FormatCoordinates,
+    PrintStatus = PrintStatus,
+    
+    -- Configuration access
+    Config = CONFIG
+}
+
+-- ========================================
+-- EXAMPLE USAGE (uncomment to test)
+-- ========================================
+
+--[[
+-- Example 1: Basic usage
+print("Calibrating...")
+Calibrate()
+task.wait(1)
+
+-- Example 2: Continuous monitoring
+while true do
+    PrintStatus()
+    task.wait(5)
+end
+
+-- Example 3: Get direction for pointing
+local direction = GetDirectionVector(true) -- relative to calibration
+if direction then
+    print("Current direction vector: X=" .. direction.x .. ", Y=" .. direction.y .. ", Z=" .. direction.z)
+end
+
+-- Example 4: Integration with other systems
+local function PointAtTarget(target_distance)
+    local nav_vector = GetNavigationVector(target_distance, true)
+    if nav_vector then
+        -- Use nav_vector for pointing or navigation
+        print("Navigate to: " .. FormatCoordinates(nav_vector, "Target"))
+    end
+end
+--]]
