@@ -1,0 +1,233 @@
+-- ========================================
+-- GYRO COORDINATE CONVERTER - EXAMPLE USAGE
+-- Demonstrates how to use the coordinate conversion system
+-- ========================================
+
+-- Load the coordinate converter module
+-- Note: In WOS, you might need to copy the functions directly or use require() if available
+local CoordConverter = require("gyro_coordinate_converter") -- Adjust path as needed
+
+-- Alternative: If require() is not available, copy the functions from the main script
+
+-- ========================================
+-- EXAMPLE 1: Basic Calibration and Monitoring
+-- ========================================
+
+local function ExampleBasicUsage()
+    print("=== BASIC USAGE EXAMPLE ===")
+    
+    -- Calibrate the system
+    print("Calibrating gyro reference point...")
+    local success = CoordConverter.Calibrate()
+    
+    if not success then
+        print("Calibration failed!")
+        return
+    end
+    
+    print("Calibration successful! Move the ship and observe changes.")
+    
+    -- Monitor coordinates for 30 seconds
+    local start_time = os.time()
+    while (os.time() - start_time) < 30 do
+        CoordConverter.PrintStatus()
+        task.wait(3)
+    end
+end
+
+-- ========================================
+-- EXAMPLE 2: Navigation Vector Calculation
+-- ========================================
+
+local function ExampleNavigation()
+    print("=== NAVIGATION EXAMPLE ===")
+    
+    -- Calibrate first
+    CoordConverter.Calibrate()
+    task.wait(1)
+    
+    -- Calculate navigation vectors at different distances
+    local distances = {10, 50, 100, 500}
+    
+    for _, distance in ipairs(distances) do
+        local nav_vector = CoordConverter.GetNavigationVector(distance, true)
+        if nav_vector then
+            print("Distance " .. distance .. ": " .. CoordConverter.FormatCoordinates(nav_vector, "Nav Vector"))
+        end
+        task.wait(1)
+    end
+end
+
+-- ========================================
+-- EXAMPLE 3: Direction Vector for Pointing System
+-- ========================================
+
+local function ExamplePointing()
+    print("=== POINTING SYSTEM EXAMPLE ===")
+    
+    -- This example shows how to integrate with a pointing system like the one in s1.txt
+    local ar = GetPart("ARController")
+    local targeting_gyro = GetPartFromPort(2, "Gyro") -- Different gyro for targeting
+    
+    if not ar or not targeting_gyro then
+        print("AR Controller or targeting gyro not found!")
+        return
+    end
+    
+    -- Calibrate the main gyro
+    CoordConverter.Calibrate()
+    
+    print("Use AR Controller to point at targets. The system will show direction vectors.")
+    
+    for i = 1, 10 do -- Run for 10 iterations
+        -- Get direction from our coordinate converter
+        local direction = CoordConverter.GetDirectionVector(true)
+        
+        if direction then
+            print("Current direction: " .. CoordConverter.FormatCoordinates(direction, "Direction"))
+            
+            -- Calculate target position based on direction and distance
+            local target_distance = 100 -- example distance
+            local target_pos = Vector3.new(
+                direction.x * target_distance,
+                direction.y * target_distance,
+                direction.z * target_distance
+            )
+            
+            -- Point the targeting gyro at the calculated position
+            targeting_gyro:PointAt(target_pos)
+            
+            print("Pointing targeting gyro at calculated position")
+        end
+        
+        task.wait(2)
+    end
+end
+
+-- ========================================
+-- EXAMPLE 4: Custom Coordinate Processing
+-- ========================================
+
+local function ExampleCustomProcessing()
+    print("=== CUSTOM PROCESSING EXAMPLE ===")
+    
+    -- Example of using raw coordinate data for custom calculations
+    CoordConverter.Calibrate()
+    
+    print("Monitoring coordinate changes and calculating movement metrics...")
+    
+    local previous_coords = nil
+    local movement_history = {}
+    
+    for i = 1, 20 do
+        local current_coords = CoordConverter.GetDirectionVector(true)
+        
+        if current_coords and previous_coords then
+            -- Calculate angular movement
+            local dx = current_coords.x - previous_coords.x
+            local dy = current_coords.y - previous_coords.y
+            local dz = current_coords.z - previous_coords.z
+            
+            local movement_magnitude = math.sqrt(dx*dx + dy*dy + dz*dz)
+            table.insert(movement_history, movement_magnitude)
+            
+            -- Keep only last 10 measurements
+            if #movement_history > 10 then
+                table.remove(movement_history, 1)
+            end
+            
+            -- Calculate average movement
+            local sum = 0
+            for _, mov in ipairs(movement_history) do
+                sum = sum + mov
+            end
+            local avg_movement = sum / #movement_history
+            
+            print(string.format("Movement: %.4f | Avg: %.4f | Stability: %s", 
+                movement_magnitude, avg_movement, 
+                avg_movement < 0.01 and "STABLE" or "MOVING"))
+        end
+        
+        previous_coords = current_coords
+        task.wait(1)
+    end
+end
+
+-- ========================================
+-- EXAMPLE 5: Integration with Existing Systems
+-- ========================================
+
+local function ExampleIntegration()
+    print("=== INTEGRATION EXAMPLE ===")
+    
+    -- Example showing how to integrate with reactor control (similar to s9.txt pattern)
+    local reactors = GetParts("Reactor")
+    
+    if not reactors or #reactors == 0 then
+        print("No reactors found for integration example")
+        return
+    end
+    
+    -- Calibrate coordinate system
+    CoordConverter.Calibrate()
+    
+    print("Demonstrating coordinate-based reactor monitoring...")
+    
+    for i = 1, 10 do
+        local direction = CoordConverter.GetDirectionVector(true)
+        
+        if direction then
+            -- Example: Use coordinate data to influence reactor operation
+            -- This is just a demonstration - adjust logic as needed
+            
+            local reactor_index = math.floor(math.abs(direction.x * #reactors)) + 1
+            if reactor_index > #reactors then reactor_index = #reactors end
+            
+            local selected_reactor = reactors[reactor_index]
+            local temp = selected_reactor:GetTemp()
+            
+            print(string.format("Direction: %.3f,%.3f,%.3f -> Monitoring Reactor %d (Temp: %.1f)", 
+                direction.x, direction.y, direction.z, reactor_index, temp))
+        end
+        
+        task.wait(2)
+    end
+end
+
+-- ========================================
+-- MAIN EXECUTION
+-- ========================================
+
+local function Main()
+    print("========= GYRO COORDINATE CONVERTER EXAMPLES =========")
+    print("Choose an example to run:")
+    print("1. Basic Usage and Monitoring")
+    print("2. Navigation Vectors")
+    print("3. Pointing System Integration")
+    print("4. Custom Coordinate Processing")
+    print("5. System Integration Example")
+    print("====================================================")
+    
+    -- For automatic execution, uncomment one of these:
+    -- ExampleBasicUsage()
+    -- ExampleNavigation()
+    -- ExamplePointing()
+    -- ExampleCustomProcessing()
+    -- ExampleIntegration()
+    
+    -- Or run a simple continuous monitor:
+    print("Running basic monitoring mode...")
+    print("Calibrating in 3 seconds...")
+    task.wait(3)
+    
+    CoordConverter.Calibrate()
+    print("Calibrated! Monitoring coordinates (Ctrl+C to stop)...")
+    
+    while true do
+        CoordConverter.PrintStatus()
+        task.wait(5)
+    end
+end
+
+-- Run the main function
+Main()

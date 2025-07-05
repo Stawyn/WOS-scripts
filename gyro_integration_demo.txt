@@ -1,0 +1,253 @@
+-- ========================================
+-- GYRO COORDINATE INTEGRATION DEMO
+-- Shows how to integrate coordinate conversion with existing WOS systems
+-- ========================================
+
+-- Parts setup (similar to other WOS scripts)
+local gyro = GetPartFromPort(1, "Gyro")
+local secondary_gyro = GetPartFromPort(2, "Gyro") -- For demonstration
+local ar = GetPart("ARController") -- Optional, for s1.txt style integration
+
+-- Import coordinate conversion functions from s13.txt
+-- (In practice, you'd copy the functions directly)
+
+-- ========================================
+-- COORDINATE CONVERSION FUNCTIONS
+-- (Copied from s13.txt for demonstration)
+-- ========================================
+
+local calibration_pitch = 0
+local calibration_yaw = 0
+local calibration_roll = 0
+
+local function NormalizeAngle(angle)
+    while angle > 180 do angle = angle - 360 end
+    while angle < -180 do angle = angle + 360 end
+    return angle
+end
+
+local function DegreesToRadians(degrees)
+    return degrees * (math.pi / 180)
+end
+
+local function Round(number, precision)
+    local mult = 10 ^ (precision or 3)
+    return math.floor(number * mult + 0.5) / mult
+end
+
+local function ReadGyro()
+    local success, data = pcall(function()
+        return gyro:GetReading()
+    end)
+    
+    if not success then return nil end
+    
+    local pitch = data.Pitch or data.pitch or data.X or 0
+    local yaw = data.Yaw or data.yaw or data.Y or 0
+    local roll = data.Roll or data.roll or data.Z or 0
+    
+    return {
+        pitch = NormalizeAngle(pitch),
+        yaw = NormalizeAngle(yaw), 
+        roll = NormalizeAngle(roll)
+    }
+end
+
+local function Calibrate()
+    local reading = ReadGyro()
+    if not reading then return false end
+    
+    calibration_pitch = reading.pitch
+    calibration_yaw = reading.yaw
+    calibration_roll = reading.roll
+    
+    print("✅ Calibrated coordinate system")
+    return true
+end
+
+local function GetRelativeAngles()
+    local reading = ReadGyro()
+    if not reading then return nil end
+    
+    return {
+        pitch = NormalizeAngle(reading.pitch - calibration_pitch),
+        yaw = NormalizeAngle(reading.yaw - calibration_yaw),
+        roll = NormalizeAngle(reading.roll - calibration_roll)
+    }
+end
+
+local function SphericalToCartesian(pitch, yaw, radius)
+    radius = radius or 1
+    
+    local theta = DegreesToRadians(pitch)
+    local phi = DegreesToRadians(yaw)
+    
+    local x = radius * math.sin(theta) * math.cos(phi)
+    local y = radius * math.sin(theta) * math.sin(phi)
+    local z = radius * math.cos(theta)
+    
+    return {
+        x = Round(x, 3),
+        y = Round(y, 3),
+        z = Round(z, 3),
+        magnitude = Round(radius, 3)
+    }
+end
+
+local function GetDirectionVector()
+    local angles = GetRelativeAngles()
+    if not angles then return nil end
+    return SphericalToCartesian(angles.pitch, angles.yaw, 1)
+end
+
+-- ========================================
+-- INTEGRATION EXAMPLES
+-- ========================================
+
+-- Example 1: Enhanced pointing system (based on s1.txt)
+local function EnhancedPointingSystem()
+    if not ar or not secondary_gyro then
+        print("❌ AR Controller or secondary gyro not available")
+        return
+    end
+    
+    print("🎯 Enhanced Pointing System Active")
+    print("   Use AR Controller to set targets")
+    print("   System will calculate and point using coordinate conversion")
+    
+    while true do
+        -- Get mouse position from AR Controller (like s1.txt)
+        local mouse = ar:GetCursor()
+        if mouse then
+            local target_pos = mouse.WorldPosition
+            
+            -- Get our current direction vector
+            local direction = GetDirectionVector()
+            if direction then
+                -- Calculate enhanced pointing with coordinate data
+                local enhanced_target = Vector3.new(
+                    target_pos.X + direction.x * 10, -- Apply directional offset
+                    target_pos.Y + direction.y * 10,
+                    target_pos.Z + direction.z * 10
+                )
+                
+                secondary_gyro:PointAt(enhanced_target)
+                
+                print(string.format("🎯 Target: %.1f,%.1f,%.1f | Direction: %.3f,%.3f,%.3f", 
+                    target_pos.X, target_pos.Y, target_pos.Z,
+                    direction.x, direction.y, direction.z))
+            end
+        end
+        
+        task.wait(0.5)
+    end
+end
+
+-- Example 2: Navigation assistance
+local function NavigationAssistance()
+    print("🧭 Navigation Assistance Active")
+    print("   Monitoring ship orientation and providing navigation data")
+    
+    local waypoints = {
+        {x = 100, y = 0, z = 0, name = "East"},
+        {x = 0, y = 100, z = 0, name = "North"},
+        {x = -100, y = 0, z = 0, name = "West"},
+        {x = 0, y = -100, z = 0, name = "South"}
+    }
+    
+    while true do
+        local direction = GetDirectionVector()
+        if direction then
+            -- Find closest waypoint based on current direction
+            local best_waypoint = nil
+            local best_dot = -2 -- Worst possible dot product
+            
+            for _, waypoint in ipairs(waypoints) do
+                -- Calculate dot product to find alignment
+                local dot = direction.x * waypoint.x + direction.y * waypoint.y + direction.z * waypoint.z
+                if dot > best_dot then
+                    best_dot = dot
+                    best_waypoint = waypoint
+                end
+            end
+            
+            if best_waypoint then
+                local alignment = Round(best_dot * 100, 1)
+                print(string.format("🧭 Heading towards %s (%.1f%% aligned)", 
+                    best_waypoint.name, alignment))
+            end
+        end
+        
+        task.wait(3)
+    end
+end
+
+-- Example 3: Orientation-based automation
+local function OrientationAutomation()
+    print("🤖 Orientation-Based Automation Active")
+    print("   Adjusting ship systems based on orientation")
+    
+    -- This example could control lights, switches, or other systems
+    -- based on ship orientation (similar to s2.txt pattern)
+    
+    local lights = GetParts("Light")
+    local switches = GetParts("Switch")
+    
+    while true do
+        local direction = GetDirectionVector()
+        if direction then
+            -- Example: Change light color based on orientation
+            if lights and #lights > 0 then
+                local color
+                if direction.z > 0.5 then
+                    color = Color3.new(0, 1, 0) -- Green for up
+                elseif direction.z < -0.5 then
+                    color = Color3.new(1, 0, 0) -- Red for down
+                else
+                    color = Color3.new(0, 0, 1) -- Blue for level
+                end
+                
+                for _, light in ipairs(lights) do
+                    light:SetColor(color)
+                end
+            end
+            
+            -- Example: Control switches based on direction
+            if switches and #switches > 0 then
+                local switch_state = direction.x > 0 -- On if pointing positive X
+                for _, switch in ipairs(switches) do
+                    switch:Configure({SwitchValue = switch_state})
+                end
+            end
+        end
+        
+        task.wait(1)
+    end
+end
+
+-- ========================================
+-- MAIN EXECUTION
+-- ========================================
+
+print("🚀 GYRO COORDINATE INTEGRATION DEMO")
+print("📋 Available integrations:")
+print("   1. Enhanced Pointing System")
+print("   2. Navigation Assistance") 
+print("   3. Orientation-Based Automation")
+
+-- Calibrate first
+print("🔧 Calibrating coordinate system...")
+if not Calibrate() then
+    print("❌ Calibration failed!")
+    return
+end
+
+print("✅ Calibration complete!")
+print("🚀 Starting navigation assistance mode...")
+print("   (Edit script to try other modes)")
+
+-- Run navigation assistance by default
+-- Uncomment others to try different integrations:
+NavigationAssistance()
+-- EnhancedPointingSystem()
+-- OrientationAutomation()
