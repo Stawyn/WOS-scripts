@@ -5,8 +5,8 @@ local Microcontroller = GetPart("Microcontroller")
 local LifeSensor = GetPartFromPort(1, "LifeSensor")
 
 -- Verificar se os componentes estão conectados
-assert(Microcontroller, "Microcontroller não encontrado")
 assert(LifeSensor, "LifeSensor não encontrado na porta 1")
+-- Microcontroller é opcional, pode usar loop manual se não disponível
 
 -- Variáveis para armazenar dados dos jogadores
 local playersData = {}
@@ -162,8 +162,20 @@ local function onLoop()
     end
 end
 
--- Conectar ao evento Loop do Microcontroller
-Microcontroller.Loop:Connect(onLoop)
+-- Conectar ao evento Loop do Microcontroller para atualização contínua
+-- Se Microcontroller não estiver disponível, usa um loop simples
+if Microcontroller and Microcontroller.Loop then
+    Microcontroller.Loop:Connect(onLoop)
+    print("🔄 Conectado ao Microcontroller.Loop para atualizações automáticas")
+else
+    print("⚠️ Microcontroller.Loop não disponível, iniciando loop manual")
+    task.spawn(function()
+        while true do
+            onLoop()
+            task.wait(updateInterval)
+        end
+    end)
+end
 
 print("🚀 Pilot.lua - LifeSensor Player Detection Script")
 print("📡 LifeSensor conectado - Monitorando jogadores...")
