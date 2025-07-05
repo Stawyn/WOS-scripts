@@ -13,17 +13,22 @@ local playersData = {}
 local lastUpdate = 0
 local updateInterval = 1 -- Atualizar a cada 1 segundo
 
--- Função para obter nome do jogador pelo UserId
+-- Função para obter nome do jogador pelo UserId  
 local function getPlayerName(userId)
-    -- No WOS, utilizamos o Players service para obter nomes
+    -- Em WOS, tentamos obter o nome de forma simplificada
     local success, result = pcall(function()
-        return game.Players:GetNameFromUserIdAsync(userId)
+        -- Verifica se existe um método direto no WOS
+        if game.Players.GetNameFromUserIdAsync then
+            return game.Players:GetNameFromUserIdAsync(userId)
+        else
+            return "Player_" .. tostring(userId)
+        end
     end)
     
-    if success then
+    if success and result then
         return result
     else
-        return "Jogador " .. tostring(userId)
+        return "Player_" .. tostring(userId)
     end
 end
 
@@ -59,87 +64,85 @@ end
 -- Função para atualizar dados dos jogadores
 local function updatePlayersData()
     local currentTime = tick()
-    
-    -- Limpar dados antigos
     playersData = {}
     
     print("=== LIFESENSOR - DETECÇÃO DE JOGADORES ===")
-    print("Sensor Position:", formatPosition(LifeSensor.Position))
-    print("Timestamp:", os.date("%H:%M:%S", currentTime))
-    print("---")
+    print("Sensor Pos:", formatPosition(LifeSensor.Position))
+    print("Time:", os.date("%H:%M:%S", currentTime))
     
-    -- Obter jogadores próximos (dentro de 2000 studs) usando GetPlayers()
-    local nearbyPlayers = LifeSensor:GetPlayers()
-    local nearbyCount = 0
+    -- 1. Obter dados de humanoides usando GetReading() (método primário)
+    local success1, humanoidData = pcall(function()
+        return LifeSensor:GetReading()
+    end)
     
-    for userId, cframe in pairs(nearbyPlayers) do
-        nearbyCount = nearbyCount + 1
-        local distance = calculateDistance(LifeSensor.Position, cframe.Position)
-        local playerName = getPlayerName(userId)
-        
-        playersData[userId] = {
-            name = playerName,
-            position = cframe.Position,
-            cframe = cframe,
-            distance = distance,
-            isNearby = true
-        }
-        
-        print(string.format("👤 %s (ID: %d)", playerName, userId))
-        print(string.format("   📍 Posição: %s", formatPosition(cframe.Position)))
-        print(string.format("   📏 Distância: %s", formatDistance(distance)))
-        print("---")
+    local humanoidCount = 0
+    if success1 and humanoidData and next(humanoidData) then
+        print("--- HUMANOIDES DETECTADOS ---")
+        for playerName, position in pairs(humanoidData) do
+            humanoidCount = humanoidCount + 1
+            local distance = calculateDistance(LifeSensor.Position, position)
+            
+            print(string.format("%s - %s - %s", 
+                playerName, 
+                formatPosition(position), 
+                formatDistance(distance)))
+        end
     end
     
-    -- Obter todos os jogadores (ignorando limite de distância) usando ListPlayers()
-    local allPlayerIds = LifeSensor:ListPlayers()
-    local distantCount = 0
+    -- 2. Obter jogadores próximos (CFrame data) usando GetPlayers()
+    local success2, nearbyPlayers = pcall(function()
+        return LifeSensor:GetPlayers()
+    end)
     
-    for _, userId in ipairs(allPlayerIds) do
-        if not playersData[userId] then
-            -- Este jogador está fora do alcance de 2000 studs
-            distantCount = distantCount + 1
+    local nearbyCount = 0
+    if success2 and nearbyPlayers and next(nearbyPlayers) then
+        print("--- JOGADORES PRÓXIMOS (CFrame) ---")
+        for userId, cframe in pairs(nearbyPlayers) do
+            nearbyCount = nearbyCount + 1
+            local distance = calculateDistance(LifeSensor.Position, cframe.Position)
             local playerName = getPlayerName(userId)
             
             playersData[userId] = {
                 name = playerName,
-                position = nil,
-                cframe = nil,
-                distance = nil,
-                isNearby = false
+                position = cframe.Position,
+                distance = distance,
+                isNearby = true
             }
             
-            print(string.format("🔍 %s (ID: %d) - FORA DE ALCANCE", playerName, userId))
-            print("   📍 Posição: Desconhecida (>2000 studs)")
-            print("   📏 Distância: >2000 studs")
-            print("---")
+            print(string.format("%s (ID:%d) - %s - %s", 
+                playerName, userId,
+                formatPosition(cframe.Position), 
+                formatDistance(distance)))
         end
     end
     
-    -- Obter dados de humanoides usando GetReading()
-    local humanoidData = LifeSensor:GetReading()
-    local humanoidCount = 0
+    -- 3. Obter todos os jogadores usando ListPlayers()
+    local success3, allPlayerIds = pcall(function()
+        return LifeSensor:ListPlayers()
+    end)
     
-    if next(humanoidData) then
-        print("=== DADOS DE HUMANOIDES ===")
-        for name, position in pairs(humanoidData) do
-            humanoidCount = humanoidCount + 1
-            local distance = calculateDistance(LifeSensor.Position, position)
-            
-            print(string.format("🤖 %s", name))
-            print(string.format("   📍 Posição: %s", formatPosition(position)))
-            print(string.format("   📏 Distância: %s", formatDistance(distance)))
-            print("---")
+    local distantCount = 0
+    if success3 and allPlayerIds and #allPlayerIds > 0 then
+        print("--- TODOS OS JOGADORES ---")
+        for _, userId in ipairs(allPlayerIds) do
+            if not playersData[userId] then
+                distantCount = distantCount + 1
+                local playerName = getPlayerName(userId)
+                
+                playersData[userId] = {
+                    name = playerName,
+                    isNearby = false
+                }
+                
+                print(string.format("%s (ID:%d) - FORA DE ALCANCE (>2000 studs)", 
+                    playerName, userId))
+            end
         end
     end
     
-    -- Resumo final
-    print("=== RESUMO ===")
-    print(string.format("👥 Jogadores próximos: %d", nearbyCount))
-    print(string.format("🔍 Jogadores distantes: %d", distantCount))
-    print(string.format("🤖 Humanoides detectados: %d", humanoidCount))
-    print(string.format("📊 Total de jogadores: %d", nearbyCount + distantCount))
-    print("=======================================")
+    -- Resumo
+    print(string.format("--- RESUMO: %d humanoides, %d próximos, %d distantes ---", 
+        humanoidCount, nearbyCount, distantCount))
     print()
     
     lastUpdate = currentTime
@@ -162,7 +165,7 @@ end
 -- Conectar ao evento Loop do Microcontroller
 Microcontroller.Loop:Connect(onLoop)
 
-print("🚀 Pilot.lua iniciado com sucesso!")
-print("📡 LifeSensor conectado e monitorando jogadores...")
-print("🔄 Atualizando a cada", updateInterval, "segundo(s)")
+print("🚀 Pilot.lua - LifeSensor Player Detection Script")
+print("📡 LifeSensor conectado - Monitorando jogadores...")
+print("🔄 Intervalo de atualização:", updateInterval, "segundo(s)")
 print()
